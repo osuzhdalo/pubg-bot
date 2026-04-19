@@ -291,7 +291,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== АВТОКОМНАТЫ НОРМ ВЕРСИЯ =====
+// ===== АВТОКОМНАТЫ (ТОЛЬКО ОНИ) =====
 
 const {
   ChannelType,
@@ -301,45 +301,48 @@ const {
   PermissionsBitField
 } = require('discord.js');
 
+// 👉 ВСТАВЬ ID КАНАЛА "СОЗДАТЬ ADR RANKED"
+const CREATE_CHANNEL_ID = "1495412453016600636";
+
 let roomCounter = 1;
 const rooms = new Map();
 
 // СОЗДАНИЕ КОМНАТЫ
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
-    if (!newState.channel) return;
+    if (!newState.channelId) return;
 
-    // 🔥 ТРИГГЕР ПО ИМЕНИ
-    if (newState.channel.name === "СОЗДАТЬ ADR RANKED") {
+    // ТРИГГЕР
+    if (newState.channelId === CREATE_CHANNEL_ID) {
 
       const guild = newState.guild;
 
-      // СОЗДАЕМ ГОЛОСОВУЮ
+      // создаем голосовую
       const voice = await guild.channels.create({
         name: `ADR RANKED #${roomCounter}`,
         type: ChannelType.GuildVoice,
-        parent: newState.channel.parent
+        parent: newState.channel.parentId
       });
 
-      // СОЗДАЕМ ЧАТ
+      // создаем чат комнаты
       const text = await guild.channels.create({
-        name: `chat-${roomCounter}`,
+        name: `adr-chat-${roomCounter}`,
         type: ChannelType.GuildText,
-        parent: newState.channel.parent
+        parent: newState.channel.parentId
       });
 
       roomCounter++;
 
-      // СОХРАНЯЕМ
+      // сохраняем
       rooms.set(voice.id, {
         owner: newState.member.id,
         textId: text.id
       });
 
-      // ПЕРЕНОС
+      // переносим
       await newState.setChannel(voice);
 
-      // КНОПКИ
+      // кнопки выбора ADR
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('adr_150').setLabel('150+').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
@@ -347,23 +350,24 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         new ButtonBuilder().setCustomId('adr_300').setLabel('300+').setStyle(ButtonStyle.Danger)
       );
 
-      // ПИШЕМ В ЧАТ КОМНАТЫ
+      // сообщение в чат комнаты
       await text.send({
-        content: `🎯 <@${newState.member.id}> выбери порог ADR`,
+        content: `🎯 <@${newState.member.id}> выбери порог ADR для комнаты`,
         components: [row]
       });
     }
 
-    // УДАЛЕНИЕ
-    if (oldState.channel && rooms.has(oldState.channel.id)) {
-      const roomData = rooms.get(oldState.channel.id);
-      const voice = oldState.channel;
-      const text = oldState.guild.channels.cache.get(roomData.textId);
+    // УДАЛЕНИЕ КОМНАТЫ
+    if (oldState.channelId && rooms.has(oldState.channelId)) {
 
-      if (voice.members.size === 0) {
+      const data = rooms.get(oldState.channelId);
+      const voice = oldState.guild.channels.cache.get(oldState.channelId);
+      const text = oldState.guild.channels.cache.get(data.textId);
+
+      if (voice && voice.members.size === 0) {
         await voice.delete().catch(()=>{});
         if (text) await text.delete().catch(()=>{});
-        rooms.delete(oldState.channel.id);
+        rooms.delete(oldState.channelId);
       }
     }
 
@@ -372,7 +376,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 });
 
-// КНОПКИ
+// КНОПКИ ADR
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
@@ -394,10 +398,12 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.customId === 'adr_300') { roleName = "RANKED ADR 300+"; number = 300; }
 
     const role = interaction.guild.roles.cache.find(r => r.name === roleName);
-    if (!role) return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
+    if (!role) {
+      return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
+    }
 
-    // РАЗРЕШАЕМ ВЫШЕ
-    const rolesAllowed = interaction.guild.roles.cache.filter(r =>
+    // разрешаем только нужный ADR и выше
+    const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= role.position
     );
 
@@ -408,7 +414,7 @@ client.on('interactionCreate', async (interaction) => {
       }
     ];
 
-    rolesAllowed.forEach(r => {
+    allowedRoles.forEach(r => {
       perms.push({
         id: r.id,
         allow: [PermissionsBitField.Flags.Connect]
@@ -417,11 +423,11 @@ client.on('interactionCreate', async (interaction) => {
 
     await voice.permissionOverwrites.set(perms);
 
-    // МЕНЯЕМ НАЗВАНИЕ
+    // меняем название комнаты
     await voice.setName(`ADR RANKED ${number}+`);
 
     await interaction.update({
-      content: `✅ Вход: ${roleName} и выше`,
+      content: `✅ Доступ: ${roleName} и выше`,
       components: []
     });
 
