@@ -12,19 +12,19 @@ const PUBG_API = "https://api.pubg.com/shards/steam";
 // ===== ADR =====
 function getFppAdrRole(adr) {
   if (adr >= 350) return "FPP ADR 350+";
-  if (adr >= 300) return "FPP ADR 300";
-  if (adr >= 250) return "FPP ADR 250";
-  if (adr >= 200) return "FPP ADR 200";
-  if (adr >= 100) return "FPP ADR 100";
+  if (adr >= 300) return "FPP ADR 300+";
+  if (adr >= 250) return "FPP ADR 250+";
+  if (adr >= 200) return "FPP ADR 200+";
+  if (adr >= 100) return "FPP ADR 100+";
   return null;
 }
 
 function getRankedAdrRole(adr) {
   if (adr >= 350) return "RANKED ADR 350+";
   if (adr >= 300) return "RANKED ADR 300+";
-  if (adr >= 250) return "RANKED ADR 250";
-  if (adr >= 200) return "RANKED ADR 200";
-  if (adr >= 100) return "RANKED ADR 100";
+  if (adr >= 250) return "RANKED ADR 250+";
+  if (adr >= 200) return "RANKED ADR 200+"; // ✅ ВОТ ТУТ ПЛЮС
+  if (adr >= 100) return "RANKED ADR 100+";
   return null;
 }
 
@@ -50,19 +50,19 @@ function getRankRoleName(tier, subTier) {
   return `${formatted} ${subTier}`;
 }
 
-// ===== ВСЕ РОЛИ (для очистки)
+// ===== ВСЕ РОЛИ =====
 const ALL_ROLES = [
-  "FPP ADR 350+","FPP ADR 300","FPP ADR 250","FPP ADR 200","FPP ADR 100",
-  "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250","RANKED ADR 200","RANKED ADR 100",
+  "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+","FPP ADR 200+","FPP ADR 100+",
+  "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+","RANKED ADR 200+","RANKED ADR 100+",
 
   "FPP KD 2+","FPP KD 1.5+","FPP KD 1+",
   "RANKED KD 2+","RANKED KD 1.5+","RANKED KD 1+",
 
-  "Bronze 5","Bronze 4","Bronze 3","Bronze 2","Bronze 1",
-  "Silver 5","Silver 4","Silver 3","Silver 2","Silver 1",
-  "Gold 5","Gold 4","Gold 3","Gold 2","Gold 1",
-  "Platinum 5","Platinum 4","Platinum 3","Platinum 2","Platinum 1",
-  "Diamond 5","Diamond 4","Diamond 3","Diamond 2","Diamond 1",
+  "Bronze 4","Bronze 3","Bronze 2","Bronze 1",
+  "Silver 4","Silver 3","Silver 2","Silver 1",
+  "Gold 4","Gold 3","Gold 2","Gold 1",
+  "Platinum 4","Platinum 3","Platinum 2","Platinum 1",
+  "Diamond 4","Diamond 3","Diamond 2","Diamond 1",
   "Master","Grandmaster"
 ];
 
@@ -99,6 +99,18 @@ client.on('interactionCreate', async (interaction) => {
       const member = interaction.member;
       const guild = interaction.guild;
 
+      // ===== СМЕНА НИКА =====
+      try {
+        if (member && member.manageable) {
+          await member.setNickname(nickname);
+        } else {
+          console.log("❌ Не могу изменить ник (нет прав)");
+        }
+      } catch (e) {
+        console.log("Ошибка смены ника:", e.message);
+      }
+
+      // ===== PUBG API =====
       const playerRes = await axios.get(
         `${PUBG_API}/players?filter[playerNames]=${nickname}`,
         {
@@ -194,7 +206,6 @@ client.on('interactionCreate', async (interaction) => {
         }
       }
 
-      // ===== ВЫДАЁМ ВСЁ =====
       await give(getRankRoleName(tier, subTier));
       await give(getFppAdrRole(fppAdr));
       await give(getRankedAdrRole(rankedAdr));
@@ -206,20 +217,8 @@ client.on('interactionCreate', async (interaction) => {
         .setTitle("📊 PUBG STATS")
         .setDescription(
           `**${nickname}**\n\n` +
-
-          `🔵 NORMAL SQUAD\n` +
-          `🎮 Games: ${fppGames}\n` +
-          `💥 ADR: ${fppAdr}\n` +
-          `🔫 KD: ${fppKd.toFixed(2)}\n\n` +
-
-          `🏆 RANKED SQUAD\n` +
-          `🎖 Rank: ${tier} ${subTier}\n` +
-          `💠 RP: ${rp}\n` +
-          `🎮 Games: ${rankedGames}\n` +
-          `💥 ADR: ${rankedAdr}\n` +
-          `🔫 KD: ${rankedKd.toFixed(2)}\n\n` +
-
-          `🟢 Роли выданы: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
+          `💥 Ranked ADR: ${rankedAdr}\n\n` +
+          `🟢 Роли: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
         );
 
       await interaction.editReply({ embeds: [embed] });
