@@ -294,7 +294,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== АВТОКОМНАТЫ FINAL =====
+// ===== АВТОКОМНАТЫ FINAL FIX =====
 
 const {
   ChannelType,
@@ -304,12 +304,12 @@ const {
   PermissionsBitField
 } = require('discord.js');
 
-const CREATE_CHANNEL_ID = "1495412453016600636"; // ← ID твоего канала СОЗДАТЬ
+const CREATE_CHANNEL_ID = "1495412453016600636";
 
 let roomCounter = 1;
 const activeRooms = new Map();
 
-// СОЗДАНИЕ КОМНАТЫ
+// СОЗДАНИЕ
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
     if (!newState.channelId) return;
@@ -318,21 +318,21 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       const guild = newState.guild;
 
-      // 🎤 создаем голосовую
+      // VOICE
       const voice = await guild.channels.create({
         name: `ADR RANKED #${roomCounter}`,
         type: ChannelType.GuildVoice,
         parent: newState.channel.parentId
       });
 
-      // 💬 создаем чат
+      // TEXT
       const text = await guild.channels.create({
         name: `adr-ranked-${roomCounter}`,
         type: ChannelType.GuildText,
         parent: newState.channel.parentId
       });
 
-      // даём доступ только создателю
+      // ❗ ВАЖНО — даем доступ боту тоже
       await text.permissionOverwrites.set([
         {
           id: guild.roles.everyone,
@@ -340,6 +340,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         },
         {
           id: newState.member.id,
+          allow: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: guild.members.me.id, // ← ВОТ ЭТОГО НЕ ХВАТАЛО
           allow: [PermissionsBitField.Flags.ViewChannel]
         }
       ]);
@@ -351,25 +355,23 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         textId: text.id
       });
 
-      // переносим в комнату
       await newState.setChannel(voice);
 
-      // кнопки
+      // КНОПКИ
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`adr_150_${voice.id}`).setLabel('150+').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(`adr_200_${voice.id}`).setLabel('200+').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(`adr_250_${voice.id}`).setLabel('250+').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`adr_300_${voice.id}`).setLabel('300+').setStyle(ButtonStyle.Danger)
       );
 
-      // пишем в чат комнаты
+      // 🔥 ТЕПЕРЬ БОТ СМОЖЕТ НАПИСАТЬ
       await text.send({
         content: `🎯 <@${newState.member.id}> выбери порог ADR`,
         components: [row]
       });
     }
 
-    // 🧹 УДАЛЕНИЕ
+    // УДАЛЕНИЕ
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       const data = activeRooms.get(oldState.channelId);
@@ -408,7 +410,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
     }
 
-    // роли с таким ADR и выше
+    // роли выше
     const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
     );
@@ -429,7 +431,7 @@ client.on('interactionCreate', async (interaction) => {
 
     await voice.permissionOverwrites.set(perms);
 
-    // доступ в чат тем же ролям
+    // доступ к чату
     const textPerms = [
       {
         id: interaction.guild.roles.everyone,
@@ -449,9 +451,13 @@ client.on('interactionCreate', async (interaction) => {
       allow: [PermissionsBitField.Flags.ViewChannel]
     });
 
+    textPerms.push({
+      id: interaction.guild.members.me.id,
+      allow: [PermissionsBitField.Flags.ViewChannel]
+    });
+
     await text.permissionOverwrites.set(textPerms);
 
-    // меняем название
     await voice.setName(`ADR RANKED ${value}+`);
 
     await text.send(`✅ Вход: ${roleName} и выше`);
