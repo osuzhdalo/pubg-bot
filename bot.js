@@ -307,10 +307,6 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== SIMPLE AUTO ADR ROOMS =====
-
-const { ChannelType } = require('discord.js');
-
 // ТВОИ КАНАЛЫ
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
