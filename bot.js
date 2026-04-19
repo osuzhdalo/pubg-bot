@@ -297,12 +297,92 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
+// ===== КОМНАТЫ (ФИНАЛ БЕЗ БАГОВ) =====
+
+const {
+  ChannelType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionsBitField
+} = require('discord.js');
+
+const CREATE_CHANNEL_ID = "1495412453016600636";
+
+const adrCounters = { "200": 0, "250": 0, "300": 0 };
+const activeRooms = new Map();
+
+// ===== СОЗДАНИЕ + УДАЛЕНИЕ =====
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  try {
+
+    // ===== СОЗДАНИЕ =====
+    if (!oldState.channelId && newState.channelId === CREATE_CHANNEL_ID) {
+
+      const room = await newState.guild.channels.create({
+        name: "⏳ ADR RANKED (ожидание)",
+        type: ChannelType.GuildVoice,
+        parent: newState.channel.parentId
+      });
+
+      activeRooms.set(room.id, {
+        owner: newState.member.id,
+        adr: null
+      });
+
+      await newState.setChannel(room);
+
+      // ждём чат внутри войса
+      setTimeout(async () => {
+        try {
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('adr_250').setLabel('250+').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('adr_300').setLabel('300+').setStyle(ButtonStyle.Danger)
+          );
+
+          await room.send({
+            content: `🎯 <@${newState.member.id}> выбери ADR`,
+            components: [row]
+          });
+
+        } catch (e) {
+          console.log("SEND ERROR:", e.message);
+        }
+      }, 1500);
+    }
+
+    // ===== УДАЛЕНИЕ =====
+    if (oldState.channelId && activeRooms.has(oldState.channelId)) {
+
+      setTimeout(async () => {
+        const room = oldState.guild.channels.cache.get(oldState.channelId);
+        if (!room) return;
+
+        const humans = room.members.filter(m => !m.user.bot);
+
+        if (humans.size === 0) {
+          activeRooms.delete(oldState.channelId);
+          await room.delete().catch(() => {});
+          console.log("Удалена:", oldState.channelId);
+        }
+
+      }, 2000);
+    }
+
+  } catch (err) {
+    console.log("ROOM ERROR:", err);
+  }
+});
+
+
+// ===== ВСЕ КНОПКИ (ADR + КИК) =====
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
 
-    await interaction.deferUpdate(); // 🔥 фикс ошибки
+    await interaction.deferUpdate(); // 🔥 фикс ошибки interaction
 
     const voiceChannel = interaction.member.voice.channel;
     if (!voiceChannel) return;
@@ -366,7 +446,7 @@ client.on('interactionCreate', async (interaction) => {
 
     data.adr = adrKey;
 
-    // ===== СООБЩЕНИЕ =====
+    // ===== СООБЩЕНИЕ В ЧАТ ВОЙСА =====
     await voiceChannel.send(`✅ ADR установлен: ${adrKey}+`);
 
     // ===== КНОПКИ КИКА =====
