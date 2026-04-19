@@ -305,7 +305,7 @@ const {
   PermissionsBitField
 } = require('discord.js');
 
-const CREATE_CHANNEL_ID = "1495412453016600636";
+const CREATE_CHANNEL_ID = "1495519416803131392";
 
 const activeRooms = new Map();
 const adrCounters = { "150": 0, "200": 0, "250": 0, "300": 0 };
