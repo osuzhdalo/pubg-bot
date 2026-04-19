@@ -297,121 +297,111 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-const {
-  ChannelType,
-  ActionRowBuilder,
-  StringSelectMenuBuilder,
-  PermissionsBitField
-} = require('discord.js');
+const { ChannelType, PermissionsBitField } = require('discord.js');
 
-const CREATE_CHANNEL_ID = "ТВОЙ_ID";
+const ADR_CHANNEL_ID = "ID_ТЕКСТОВОГО_КАНАЛА"; // #adr-выбор
 
-const rooms = new Map();
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
+const rooms = new Map();
 
-// ===== ЗАШЕЛ В КАНАЛ СОЗДАНИЯ =====
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  try {
-    if (newState.channelId === CREATE_CHANNEL_ID) {
+// ===== СОЗДАНИЕ СООБЩЕНИЯ =====
+client.once('ready', async () => {
+  const channel = await client.channels.fetch(ADR_CHANNEL_ID);
 
-      const menu = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId("select_adr")
-          .setPlaceholder("Выбери ADR")
-          .addOptions([
-            { label: "150+", value: "150" },
-            { label: "200+", value: "200" },
-            { label: "250+", value: "250" },
-            { label: "300+", value: "300" }
-          ])
-      );
+  const msg = await channel.send(
+    "🎯 **Выбери ADR для комнаты:**\n\n🟢 150+\n🔵 200+\n🟡 250+\n🔴 300+"
+  );
 
-      await newState.member.send({
-        content: "🎯 Выбери ADR для комнаты:",
-        components: [menu]
-      }).catch(() => {
-        newState.member.send("❌ Открой ЛС с сервером");
-      });
-
-      await newState.disconnect();
-    }
-
-    // ===== УДАЛЕНИЕ =====
-    if (oldState.channelId && rooms.has(oldState.channelId)) {
-      setTimeout(async () => {
-        const ch = oldState.guild.channels.cache.get(oldState.channelId);
-        if (!ch) return;
-
-        if (ch.members.size === 0) {
-          rooms.delete(ch.id);
-          await ch.delete().catch(() => {});
-        }
-      }, 1000);
-    }
-
-  } catch (err) {
-    console.log(err);
-  }
+  await msg.react("🟢");
+  await msg.react("🔵");
+  await msg.react("🟡");
+  await msg.react("🔴");
 });
 
-// ===== ВЫБОР ADR =====
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isStringSelectMenu()) return;
-  if (interaction.customId !== "select_adr") return;
+
+// ===== ОБРАБОТКА РЕАКЦИИ =====
+client.on('messageReactionAdd', async (reaction, user) => {
+  if (user.bot) return;
 
   try {
-    await interaction.deferReply({ ephemeral: true });
+    const emoji = reaction.emoji.name;
 
-    const adr = interaction.values[0];
-    const guild = client.guilds.cache.first();
-    const member = await guild.members.fetch(interaction.user.id);
+    let adr = null;
+    if (emoji === "🟢") adr = 150;
+    if (emoji === "🔵") adr = 200;
+    if (emoji === "🟡") adr = 250;
+    if (emoji === "🔴") adr = 300;
+
+    if (!adr) return;
+
+    const guild = reaction.message.guild;
+    const member = await guild.members.fetch(user.id);
+
+    // должен быть в голосе
+    if (!member.voice.channel) {
+      return;
+    }
 
     counters[adr]++;
     const number = counters[adr];
 
-    // ===== СОЗДАНИЕ КОМНАТЫ =====
+    // ===== СОЗДАЕМ КОМНАТУ =====
     const channel = await guild.channels.create({
       name: `🎯 ADR RANKED ${adr}+ #${number}`,
       type: ChannelType.GuildVoice,
       userLimit: 4
     });
 
-    rooms.set(channel.id, {
-      owner: member.id,
-      adr: adr
-    });
+    rooms.set(channel.id, true);
 
     // ===== ПРАВА =====
     const role = guild.roles.cache.find(r => r.name === `RANKED ADR ${adr}+`);
 
-    const allowRoles = guild.roles.cache.filter(r =>
-      r.name.startsWith("RANKED ADR") && r.position >= role.position
-    );
+    if (role) {
+      const allowRoles = guild.roles.cache.filter(r =>
+        r.name.startsWith("RANKED ADR") && r.position >= role.position
+      );
 
-    const perms = [
-      {
-        id: guild.roles.everyone,
-        deny: [PermissionsBitField.Flags.Connect]
-      }
-    ];
+      const perms = [
+        {
+          id: guild.roles.everyone,
+          deny: [PermissionsBitField.Flags.Connect]
+        }
+      ];
 
-    allowRoles.forEach(r => {
-      perms.push({
-        id: r.id,
-        allow: [PermissionsBitField.Flags.Connect]
+      allowRoles.forEach(r => {
+        perms.push({
+          id: r.id,
+          allow: [PermissionsBitField.Flags.Connect]
+        });
       });
-    });
 
-    await channel.permissionOverwrites.set(perms);
+      await channel.permissionOverwrites.set(perms);
+    }
 
-    // ===== ПЕРЕМЕЩЕНИЕ =====
-    await member.voice.setChannel(channel).catch(() => {});
-
-    await interaction.editReply(`✅ Комната создана: ${channel.name}`);
+    // ===== ПЕРЕМЕЩАЕМ =====
+    await member.voice.setChannel(channel);
 
   } catch (err) {
     console.log(err);
-    interaction.editReply("❌ Ошибка");
+  }
+});
+
+
+// ===== УДАЛЕНИЕ =====
+client.on('voiceStateUpdate', async (oldState) => {
+  if (!oldState.channelId) return;
+
+  if (rooms.has(oldState.channelId)) {
+    setTimeout(async () => {
+      const ch = oldState.guild.channels.cache.get(oldState.channelId);
+      if (!ch) return;
+
+      if (ch.members.size === 0) {
+        rooms.delete(ch.id);
+        await ch.delete().catch(() => {});
+      }
+    }, 1000);
   }
 });
 client.login(process.env.DISCORD_TOKEN);
