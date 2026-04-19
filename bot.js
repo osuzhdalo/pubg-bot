@@ -7,8 +7,9 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates // ← ВАЖНО
-    GatewayIntentBits.GuildMessageReactions
+    GatewayIntentBits.GuildVoiceStates
+  ]
+});
   ]
 });
 
