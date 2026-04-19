@@ -9,21 +9,6 @@ const client = new Client({
 
 const PUBG_API = "https://api.pubg.com/shards/steam";
 const REGISTER_ROLE = "REGISTERED";
-const REGISTER_CHANNEL = "регистрация";
-
-// ===== ПРИ ВХОДЕ =====
-client.on('guildMemberAdd', async (member) => {
-  try {
-    const channel = member.guild.channels.cache.find(c => c.name === REGISTER_CHANNEL);
-
-    if (channel) {
-      channel.send(
-        `👋 Добро пожаловать, ${member}!\n\n` +
-        `🔒 Напиши /stats ник чтобы открыть сервер`
-      );
-    }
-  } catch {}
-});
 
 // ===== ADR =====
 function getFppAdrRole(adr) {
@@ -114,12 +99,15 @@ client.on('interactionCreate', async (interaction) => {
       const guild = interaction.guild;
 
       // ===== PUBG =====
-      const playerRes = await axios.get(`${PUBG_API}/players?filter[playerNames]=${nickname}`, {
-        headers: {
-          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-          Accept: 'application/vnd.api+json'
+      const playerRes = await axios.get(
+        `${PUBG_API}/players?filter[playerNames]=${nickname}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+            Accept: 'application/vnd.api+json'
+          }
         }
-      });
+      );
 
       if (!playerRes.data.data.length) {
         return interaction.editReply("❌ Игрок не найден");
@@ -136,12 +124,16 @@ client.on('interactionCreate', async (interaction) => {
 
       const seasonId = seasonRes.data.data.find(s => s.attributes.isCurrentSeason).id;
 
-      const normalRes = await axios.get(`${PUBG_API}/players/${playerId}/seasons/${seasonId}`, {
-        headers: {
-          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-          Accept: 'application/vnd.api+json'
+      // ===== NORMAL =====
+      const normalRes = await axios.get(
+        `${PUBG_API}/players/${playerId}/seasons/${seasonId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+            Accept: 'application/vnd.api+json'
+          }
         }
-      });
+      );
 
       const stats = normalRes.data.data.attributes.gameModeStats;
       const normal = stats['squad-fpp'] || stats['squad'] || {};
@@ -150,6 +142,7 @@ client.on('interactionCreate', async (interaction) => {
       const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
       const fppKd = fppGames ? (normal.kills / fppGames) : 0;
 
+      // ===== RANKED =====
       let ranked = {};
       let rankedGames = 0;
       let rankedAdr = 0;
@@ -159,12 +152,15 @@ client.on('interactionCreate', async (interaction) => {
       let rp = 0;
 
       try {
-        const rankedRes = await axios.get(`${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`, {
-          headers: {
-            Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-            Accept: 'application/vnd.api+json'
+        const rankedRes = await axios.get(
+          `${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+              Accept: 'application/vnd.api+json'
+            }
           }
-        });
+        );
 
         const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
         ranked = rankedStats['squad'] || rankedStats['squad-fpp'] || {};
@@ -179,7 +175,7 @@ client.on('interactionCreate', async (interaction) => {
 
       } catch {}
 
-      // ===== ЧИСТИМ =====
+      // ===== ЧИСТИМ РОЛИ =====
       for (const roleName of ALL_ROLES) {
         const role = guild.roles.cache.find(r => r.name === roleName);
         if (role && member.roles.cache.has(role.id)) {
@@ -200,33 +196,46 @@ client.on('interactionCreate', async (interaction) => {
         }
       }
 
-      // ===== ВЫДАЕМ ВСЁ =====
+      // ===== ВЫДАЁМ РОЛИ =====
       await give(getRankRoleName(tier, subTier));
       await give(getFppAdrRole(fppAdr));
       await give(getRankedAdrRole(rankedAdr));
       await give(getFppKdRole(fppKd));
       await give(getRankedKdRole(rankedKd));
 
-      // ===== ДОБАВЛЯЕМ REGISTERED =====
+      // ===== РЕГИСТРАЦИЯ =====
       const regRole = guild.roles.cache.find(r => r.name === REGISTER_ROLE);
-      if (regRole) await member.roles.add(regRole);
+      if (regRole && !member.roles.cache.has(regRole.id)) {
+        await member.roles.add(regRole);
+      }
 
-      // ===== НИК =====
+      // ===== СМЕНА НИКА =====
       try {
         if (member.manageable) {
           await member.setNickname(nickname);
         }
       } catch {}
 
-      // ===== EMBED =====
+      // ===== EMBED (КАК БЫЛО) =====
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
         .setTitle("📊 PUBG STATS")
         .setDescription(
           `**${nickname}**\n\n` +
-          `🔵 NORMAL SQUAD\n🎮 ${fppGames}\n💥 ${fppAdr}\n🔫 ${fppKd.toFixed(2)}\n\n` +
-          `🏆 RANKED SQUAD\n🎖 ${tier} ${subTier}\n💠 ${rp}\n🎮 ${rankedGames}\n💥 ${rankedAdr}\n🔫 ${rankedKd.toFixed(2)}\n\n` +
-          `🟢 Роли: ${givenRoles.join(', ') || 'нет'}`
+
+          `🔵 NORMAL SQUAD\n` +
+          `🎮 Games: ${fppGames}\n` +
+          `💥 ADR: ${fppAdr}\n` +
+          `🔫 KD: ${fppKd.toFixed(2)}\n\n` +
+
+          `🏆 RANKED SQUAD\n` +
+          `🎖 Rank: ${tier} ${subTier}\n` +
+          `💠 RP: ${rp}\n` +
+          `🎮 Games: ${rankedGames}\n` +
+          `💥 ADR: ${rankedAdr}\n` +
+          `🔫 KD: ${rankedKd.toFixed(2)}\n\n` +
+
+          `🟢 Роли выданы: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
         );
 
       await interaction.editReply({ embeds: [embed] });
