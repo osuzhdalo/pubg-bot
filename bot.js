@@ -305,7 +305,7 @@ client.on('interactionCreate', async (interaction) => {
 });
 const { ChannelType, PermissionsBitField } = require('discord.js');
 
-const ADR_CHANNEL_ID = "ID_КАНАЛА"; // канал #adr-выбор
+const ADR_CHANNEL_ID = "1495525233505861633"; // канал #adr-выбор
 
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const rooms = new Map();
