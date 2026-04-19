@@ -307,5 +307,69 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
+// ===== SIMPLE AUTO ADR ROOMS =====
 
+const { ChannelType } = require('discord.js');
+
+// ТВОИ КАНАЛЫ
+const CREATE_CHANNELS = {
+  "150": "1495532168946913310",
+  "200": "1495532213674971147",
+  "250": "1495532256410734824",
+  "300": "1495532283354943508"
+};
+
+const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
+const activeRooms = new Set();
+
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  try {
+
+    // ===== СОЗДАНИЕ =====
+    for (const adr in CREATE_CHANNELS) {
+
+      if (
+        newState.channelId === CREATE_CHANNELS[adr] &&
+        oldState.channelId !== CREATE_CHANNELS[adr]
+      ) {
+
+        const guild = newState.guild;
+        const member = newState.member;
+
+        counters[adr]++;
+        const number = counters[adr];
+
+        const room = await guild.channels.create({
+          name: `🎯 ADR RANKED ${adr}+ #${number}`,
+          type: ChannelType.GuildVoice,
+          parent: newState.channel.parentId,
+          userLimit: 4
+        });
+
+        activeRooms.add(room.id);
+
+        // перенос
+        await member.voice.setChannel(room);
+      }
+    }
+
+    // ===== УДАЛЕНИЕ =====
+    if (oldState.channelId && activeRooms.has(oldState.channelId)) {
+
+      setTimeout(async () => {
+        const ch = oldState.guild.channels.cache.get(oldState.channelId);
+        if (!ch) return;
+
+        if (ch.members.size === 0) {
+          activeRooms.delete(ch.id);
+          await ch.delete().catch(() => {});
+        }
+
+      }, 1500);
+    }
+
+  } catch (err) {
+    console.log("VOICE ERROR:", err);
+  }
+});
 client.login(process.env.DISCORD_TOKEN);
