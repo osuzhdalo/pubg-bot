@@ -9,7 +9,8 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  ChannelType
 } = require('discord.js');
 
 const axios = require('axios');
@@ -34,65 +35,78 @@ client.on('guildMemberAdd', async (member) => {
   if (role) await member.roles.add(role);
 });
 
-// ===== VOICE =====
+// ===== СОЗДАНИЕ КОМНАТ =====
 client.on('voiceStateUpdate', async (oldState, newState) => {
   const join = newState.channel;
   const leave = oldState.channel;
 
-  // СОЗДАНИЕ КОМНАТЫ
+  // СОЗДАНИЕ
   if (join && join.name === "СОЗДАТЬ ADR RANKED") {
     const guild = newState.guild;
 
-    const newChannel = await guild.channels.create({
-      name: `RANKED #${roomId++}`,
-      type: 2,
+    const roomName = `ADR RANKED #${roomId++}`;
+
+    // VOICE
+    const voice = await guild.channels.create({
+      name: roomName,
+      type: ChannelType.GuildVoice,
       parent: join.parent
     });
 
-    tempRooms.set(newChannel.id, true);
+    // TEXT
+    const text = await guild.channels.create({
+      name: roomName.toLowerCase().replace(/ /g, '-'),
+      type: ChannelType.GuildText,
+      parent: join.parent
+    });
 
-    await newState.setChannel(newChannel);
+    tempRooms.set(voice.id, { textId: text.id });
 
+    await newState.setChannel(voice);
+
+    // КНОПКИ
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('adr200').setLabel('200+').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('adr250').setLabel('250+').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId('adr300').setLabel('300+').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('kick').setLabel('Выгнать').setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId('kick').setLabel('Выгнать всех').setStyle(ButtonStyle.Danger)
     );
 
-    const textChannel = guild.channels.cache.find(c => c.name.includes("регистрация"));
-
-    if (textChannel) {
-      textChannel.send({
-        content: `🎮 ${newState.member}, настрой комнату ${newChannel.name}`,
-        components: [row]
-      });
-    }
+    // СООБЩЕНИЕ В ЧАТ ЭТОЙ ЖЕ КОМНАТЫ
+    await text.send({
+      content: `🎮 ${newState.member}\nНастрой доступ к комнате:\nВыбери ADR`,
+      components: [row]
+    });
   }
 
   // УДАЛЕНИЕ
   if (leave && tempRooms.has(leave.id)) {
     if (leave.members.size === 0) {
-      await leave.delete();
+      const data = tempRooms.get(leave.id);
+
+      await leave.delete().catch(()=>{});
+
+      const text = leave.guild.channels.cache.get(data.textId);
+      if (text) await text.delete().catch(()=>{});
+
       tempRooms.delete(leave.id);
     }
   }
 });
 
-// ===== КНОПКИ + КОМАНДА =====
+// ===== КНОПКИ =====
 client.on('interactionCreate', async (interaction) => {
 
-  // ===== КНОПКИ =====
   if (interaction.isButton()) {
     const member = interaction.member;
-    const channel = member.voice.channel;
+    const voice = member.voice.channel;
 
-    if (!channel) {
+    if (!voice) {
       return interaction.reply({ content: "❌ Ты не в комнате", ephemeral: true });
     }
 
     if (interaction.customId === "kick") {
-      for (const m of channel.members.values()) {
+      for (const m of voice.members.values()) {
         await m.voice.disconnect();
       }
       return interaction.reply("🚪 Все выгнаны");
@@ -107,7 +121,7 @@ client.on('interactionCreate', async (interaction) => {
     const role = interaction.guild.roles.cache.find(r => r.name === roleName);
     if (!role) return interaction.reply("❌ Нет роли");
 
-    await channel.permissionOverwrites.set([
+    await voice.permissionOverwrites.set([
       {
         id: interaction.guild.roles.everyone.id,
         deny: ["Connect"]
@@ -118,10 +132,10 @@ client.on('interactionCreate', async (interaction) => {
       }
     ]);
 
-    return interaction.reply(`✅ Доступ: ${roleName}`);
+    return interaction.reply(`✅ Теперь доступ только: ${roleName}`);
   }
 
-  // ===== SLASH =====
+  // ===== /stats =====
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'stats') {
@@ -228,14 +242,11 @@ client.on('interactionCreate', async (interaction) => {
         .setDescription(
           `**${nickname}**\n\n` +
 
-          `🔵 NORMAL\n` +
-          `🎮 ${fppGames}\n💥 ${fppAdr}\n🔫 ${fppKd.toFixed(2)}\n\n` +
+          `🔵 NORMAL\n🎮 ${fppGames}\n💥 ${fppAdr}\n🔫 ${fppKd.toFixed(2)}\n\n` +
 
-          `🏆 RANKED\n` +
-          `🎖 ${tier} ${subTier}\n💠 ${rp}\n🎮 ${rankedGames}\n💥 ${rankedAdr}\n🔫 ${rankedKd.toFixed(2)}\n\n` +
+          `🏆 RANKED\n🎖 ${tier} ${subTier}\n💠 ${rp}\n🎮 ${rankedGames}\n💥 ${rankedAdr}\n🔫 ${rankedKd.toFixed(2)}\n\n` +
 
-          `👥 DUO\n` +
-          `🎮 ${duoGames}\n💥 ${duoAdr}\n🔫 ${duoKd.toFixed(2)}`
+          `👥 DUO\n🎮 ${duoGames}\n💥 ${duoAdr}\n🔫 ${duoKd.toFixed(2)}`
         );
 
       await interaction.editReply({ embeds: [embed] });
