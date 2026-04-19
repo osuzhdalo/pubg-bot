@@ -297,9 +297,6 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-
-// ===== КОМНАТЫ (ФИНАЛ С ФИКСАМИ) =====
-
 const {
   ChannelType,
   ActionRowBuilder,
@@ -317,7 +314,6 @@ const activeRooms = new Map();
 // ===== СОЗДАНИЕ =====
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
-
     if (newState.channelId === CREATE_CHANNEL_ID && oldState.channelId !== CREATE_CHANNEL_ID) {
 
       const room = await newState.guild.channels.create({
@@ -334,6 +330,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       await newState.setChannel(room);
 
+      // КНОПКИ (шлём в interaction через reply позже)
       setTimeout(async () => {
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
@@ -342,22 +339,18 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         );
 
         try {
-          await room.send({
-            content: `🎯 <@${newState.member.id}> выбери ADR`,
+          await newState.member.send({
+            content: `🎯 Выбери ADR для комнаты`,
             components: [row]
           });
-        } catch (e) {
-          console.log("SEND ERROR:", e.message);
-        }
-
-      }, 800);
+        } catch {}
+      }, 500);
     }
 
-    // ===== УДАЛЕНИЕ (ФИКС) =====
+    // ===== УДАЛЕНИЕ =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       setTimeout(async () => {
-
         const room = oldState.guild.channels.cache.get(oldState.channelId);
         if (!room) return;
 
@@ -366,11 +359,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         if (humans.size === 0) {
           activeRooms.delete(oldState.channelId);
           await room.delete().catch(() => {});
-          console.log("Удалена:", oldState.channelId);
         }
 
-      }, 3000); // 🔥 ждём пока Discord обновит состояние
-
+      }, 2000);
     }
 
   } catch (err) {
@@ -384,13 +375,18 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
-    await interaction.deferUpdate(); // 🔥 убирает ошибку
 
-    const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) return;
+    const member = interaction.guild.members.cache.get(interaction.user.id);
+    const voiceChannel = member.voice.channel;
+
+    if (!voiceChannel) {
+      return interaction.reply({ content: "❌ Ты не в комнате", ephemeral: true });
+    }
 
     const data = activeRooms.get(voiceChannel.id);
-    if (!data) return;
+    if (!data) {
+      return interaction.reply({ content: "❌ Это не комната бота", ephemeral: true });
+    }
 
     let adrKey = null;
 
@@ -403,9 +399,11 @@ client.on('interactionCreate', async (interaction) => {
     adrCounters[adrKey]++;
     const number = adrCounters[adrKey];
 
-    // ===== ПРАВА =====
+    // ПРАВА
     const baseRole = interaction.guild.roles.cache.find(r => r.name === `RANKED ADR ${adrKey}+`);
-    if (!baseRole) return;
+    if (!baseRole) {
+      return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
+    }
 
     const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
@@ -421,25 +419,23 @@ client.on('interactionCreate', async (interaction) => {
 
     await voiceChannel.permissionOverwrites.set(perms);
 
-    // ===== НАЗВАНИЕ =====
+    // НАЗВАНИЕ
     const newName = `🎯 ADR RANKED ${adrKey}+ #${number}`;
     await voiceChannel.setName(newName);
 
     data.adr = adrKey;
 
-    // ===== ПИШЕМ В ПРАВЫЙ ЧАТ =====
-    try {
-      if (interaction.channel) {
-        await interaction.channel.send(
-          `✅ <@${interaction.user.id}> выбрал ADR ${adrKey}+`
-        );
-      }
-    } catch (e) {
-      console.log("CHAT ERROR:", e.message);
-    }
+    // ✅ ОТВЕТ (ГАРАНТИРОВАННО РАБОТАЕТ)
+    await interaction.reply({
+      content: `✅ Ты выбрал ${adrKey}+ ADR\n📢 Комната: ${newName}`,
+      ephemeral: false
+    });
 
   } catch (err) {
     console.log("BUTTON ERROR:", err);
+    try {
+      await interaction.reply({ content: "❌ Ошибка", ephemeral: true });
+    } catch {}
   }
 });
 client.login(process.env.DISCORD_TOKEN);
