@@ -1,26 +1,28 @@
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const axios = require('axios');
+const {
+  Client,
+  GatewayIntentBits,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  EmbedBuilder,
+  ChannelType,
+  PermissionsBitField
+} = require('discord.js');
 
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const axios = require('axios');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMessageReactions
-  ],
-  partials: [
-    Partials.Message,
-    Partials.Channel,
-    Partials.Reaction
+    GatewayIntentBits.GuildMessages
   ]
 });
-const PUBG_API = "https://api.pubg.com/shards/steam";
 
+const PUBG_API = "https://api.pubg.com/shards/steam";
 // ===== ВХОД (REGISTERED) =====
 client.on('guildMemberAdd', async (member) => {
   const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
@@ -305,128 +307,5 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== ADR ROOMS SYSTEM =====
-const { ChannelType, PermissionsBitField, Partials } = require('discord.js');
 
-const ADR_CHANNEL_ID = "1495525233505861633";
-
-const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
-const rooms = new Map();
-
-// ===== СООБЩЕНИЕ С ВЫБОРОМ =====
-client.once('ready', async () => {
-  console.log("ADR система запущена");
-
-  const channel = await client.channels.fetch(ADR_CHANNEL_ID).catch(() => null);
-  if (!channel) return console.log("❌ Не найден канал");
-
-  const msg = await channel.send(
-    "🎯 **Выбери ADR:**\n\n🟢 150+\n🔵 200+\n🟡 250+\n🔴 300+"
-  );
-
-  await msg.react("🟢");
-  await msg.react("🔵");
-  await msg.react("🟡");
-  await msg.react("🔴");
-});
-
-// ===== РЕАКЦИИ =====
-client.on('messageReactionAdd', async (reaction, user) => {
-  try {
-    if (user.bot) return;
-
-    // FIX PARTIALS
-    if (reaction.partial) await reaction.fetch();
-    if (reaction.message.partial) await reaction.message.fetch();
-
-    const message = reaction.message;
-
-    // только наш канал
-    if (message.channel.id !== ADR_CHANNEL_ID) return;
-
-    let adr = null;
-
-    if (reaction.emoji.name === "🟢") adr = 150;
-    if (reaction.emoji.name === "🔵") adr = 200;
-    if (reaction.emoji.name === "🟡") adr = 250;
-    if (reaction.emoji.name === "🔴") adr = 300;
-
-    if (!adr) return;
-
-    const guild = message.guild;
-    const member = await guild.members.fetch(user.id);
-
-    // должен быть в голосе
-    if (!member.voice.channel) return;
-
-    // считаем номер
-    counters[adr]++;
-    const number = counters[adr];
-
-    // ===== СОЗДАЕМ КОМНАТУ =====
-    const room = await guild.channels.create({
-      name: `🎯 ADR RANKED ${adr}+ #${number}`,
-      type: ChannelType.GuildVoice,
-      parent: message.channel.parentId,
-      userLimit: 4
-    });
-
-    rooms.set(room.id, true);
-
-    // ===== ПРАВА ПО ADR =====
-    const baseRole = guild.roles.cache.find(r => r.name === `RANKED ADR ${adr}+`);
-
-    if (baseRole) {
-      const roles = guild.roles.cache.filter(r =>
-        r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
-      );
-
-      const perms = [
-        {
-          id: guild.roles.everyone,
-          deny: [PermissionsBitField.Flags.Connect]
-        }
-      ];
-
-      roles.forEach(r => {
-        perms.push({
-          id: r.id,
-          allow: [PermissionsBitField.Flags.Connect]
-        });
-      });
-
-      await room.permissionOverwrites.set(perms);
-    }
-
-    // ===== ПЕРЕМЕЩАЕМ В КОМНАТУ =====
-    await member.voice.setChannel(room);
-
-    // ===== УДАЛЯЕМ СООБЩЕНИЕ (чтобы не спамили) =====
-    await message.delete().catch(() => {});
-
-  } catch (err) {
-    console.log("REACTION ERROR:", err);
-  }
-});
-
-// ===== УДАЛЕНИЕ КОМНАТ =====
-client.on('voiceStateUpdate', async (oldState, newState) => {
-  try {
-    if (!oldState.channelId) return;
-
-    if (rooms.has(oldState.channelId)) {
-      setTimeout(async () => {
-        const ch = oldState.guild.channels.cache.get(oldState.channelId);
-        if (!ch) return;
-
-        if (ch.members.filter(m => !m.user.bot).size === 0) {
-          rooms.delete(ch.id);
-          await ch.delete().catch(() => {});
-        }
-      }, 1500);
-    }
-  } catch (err) {
-    console.log("DELETE ERROR:", err);
-  }
-});
 client.login(process.env.DISCORD_TOKEN);
