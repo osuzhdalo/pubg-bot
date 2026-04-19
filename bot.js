@@ -17,7 +17,11 @@ const {
 const axios = require('axios');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildVoiceStates]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates
+  ]
 });
 
 const PUBG_API = "https://api.pubg.com/shards/steam";
@@ -30,9 +34,13 @@ client.on('guildMemberAdd', async (member) => {
 });
 
 
-// ===== ADR =====
+// ===== РОЛИ =====
+function getFppAdrRole(adr) {
+  if (adr >= 200) return "FPP ADR 200+";
+  return null;
+}
+
 function getRankedAdrRole(adr) {
-  if (adr >= 350) return "RANKED ADR 350+";
   if (adr >= 300) return "RANKED ADR 300+";
   if (adr >= 250) return "RANKED ADR 250+";
   if (adr >= 200) return "RANKED ADR 200+";
@@ -40,31 +48,27 @@ function getRankedAdrRole(adr) {
 }
 
 function getRankedDuoAdrRole(adr) {
-  if (adr >= 350) return "RANKED DUO ADR 350+";
   if (adr >= 300) return "RANKED DUO ADR 300+";
   if (adr >= 250) return "RANKED DUO ADR 250+";
   if (adr >= 200) return "RANKED DUO ADR 200+";
   return null;
 }
 
+function getFppKdRole(kd) {
+  if (kd >= 1) return "FPP KD 1+";
+  return null;
+}
 
-// ===== KD =====
 function getRankedKdRole(kd) {
-  if (kd >= 2) return "RANKED KD 2+";
-  if (kd >= 1.5) return "RANKED KD 1.5+";
   if (kd >= 1) return "RANKED KD 1+";
   return null;
 }
 
 function getRankedDuoKdRole(kd) {
-  if (kd >= 2) return "RANKED DUO KD 2+";
   if (kd >= 1.5) return "RANKED DUO KD 1.5+";
-  if (kd >= 1) return "RANKED DUO KD 1+";
   return null;
 }
 
-
-// ===== RANK =====
 function getRankRoleName(tier, subTier) {
   if (!tier || !subTier) return null;
   return `${tier.charAt(0) + tier.slice(1).toLowerCase()} ${subTier}`;
@@ -97,42 +101,6 @@ client.once('ready', async () => {
 // ===== STATS =====
 client.on('interactionCreate', async (interaction) => {
 
-  // ===== КНОПКИ =====
-  if (interaction.isButton()) {
-    const voiceId = [...rooms.keys()].find(id =>
-      rooms.get(id).textId === interaction.channel.id
-    );
-
-    if (!voiceId) return;
-
-    const data = rooms.get(voiceId);
-
-    if (interaction.user.id !== data.owner) {
-      return interaction.reply({ content: "❌ Только создатель", ephemeral: true });
-    }
-
-    let roleName;
-
-    if (interaction.customId === '200') roleName = "RANKED ADR 200+";
-    if (interaction.customId === '250') roleName = "RANKED ADR 250+";
-    if (interaction.customId === '300') roleName = "RANKED ADR 300+";
-
-    const role = interaction.guild.roles.cache.find(r => r.name === roleName);
-    const voice = interaction.guild.channels.cache.get(voiceId);
-
-    if (role && voice) {
-      await voice.permissionOverwrites.edit(role, { Connect: true });
-      await voice.permissionOverwrites.edit(interaction.guild.roles.everyone, { Connect: false });
-    }
-
-    return interaction.update({
-      content: `✅ Доступ: ${roleName}`,
-      components: []
-    });
-  }
-
-
-  // ===== СТАТС =====
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'stats') {
@@ -153,9 +121,15 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     try {
+      // PLAYER
       const playerRes = await axios.get(
         `${PUBG_API}/players?filter[playerNames]=${nickname}`,
-        { headers: { Authorization: `Bearer ${process.env.PUBG_API_KEY}`, Accept: 'application/vnd.api+json' } }
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+            Accept: 'application/vnd.api+json'
+          }
+        }
       );
 
       if (!playerRes.data.data.length) {
@@ -164,35 +138,72 @@ client.on('interactionCreate', async (interaction) => {
 
       const playerId = playerRes.data.data[0].id;
 
+      // SEASON
       const seasonRes = await axios.get(`${PUBG_API}/seasons`, {
-        headers: { Authorization: `Bearer ${process.env.PUBG_API_KEY}`, Accept: 'application/vnd.api+json' }
+        headers: {
+          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+          Accept: 'application/vnd.api+json'
+        }
       });
 
       const seasonId = seasonRes.data.data.find(s => s.attributes.isCurrentSeason).id;
 
-      // ===== RANKED =====
-      const rankedRes = await axios.get(
-        `${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`,
-        { headers: { Authorization: `Bearer ${process.env.PUBG_API_KEY}`, Accept: 'application/vnd.api+json' } }
+      // ===== NORMAL =====
+      const normalRes = await axios.get(
+        `${PUBG_API}/players/${playerId}/seasons/${seasonId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+            Accept: 'application/vnd.api+json'
+          }
+        }
       );
 
-      const stats = rankedRes.data.data.attributes.rankedGameModeStats;
+      const normalStats = normalRes.data.data.attributes.gameModeStats;
+      const normal = normalStats['squad-fpp'] || normalStats['squad'] || {};
 
-      const squad = stats['squad'] || {};
-      const duo = stats['duo'] || {};
+      const fppGames = normal.roundsPlayed || 0;
+      const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
+      const fppKd = fppGames ? (normal.kills / fppGames) : 0;
 
-      const rankedGames = squad.roundsPlayed || 0;
-      const rankedAdr = rankedGames ? Math.round(squad.damageDealt / rankedGames) : 0;
-      const rankedKd = rankedGames ? (squad.kills / rankedGames) : 0;
+      // ===== RANKED =====
+      let ranked = {};
+      let duo = {};
+      let tier = "Unranked";
+      let subTier = "";
+      let rp = 0;
+
+      try {
+        const rankedRes = await axios.get(
+          `${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+              Accept: 'application/vnd.api+json'
+            }
+          }
+        );
+
+        const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
+
+        ranked = rankedStats['squad'] || {};
+        duo = rankedStats['duo'] || {};
+
+        tier = ranked.currentTier?.tier || "Unranked";
+        subTier = ranked.currentTier?.subTier || "";
+        rp = ranked.currentRankPoint || 0;
+
+      } catch {}
+
+      const rankedGames = ranked.roundsPlayed || 0;
+      const rankedAdr = rankedGames ? Math.round(ranked.damageDealt / rankedGames) : 0;
+      const rankedKd = rankedGames ? (ranked.kills / rankedGames) : 0;
 
       const duoGames = duo.roundsPlayed || 0;
       const duoAdr = duoGames ? Math.round(duo.damageDealt / duoGames) : 0;
       const duoKd = duoGames ? (duo.kills / duoGames) : 0;
 
-      const tier = squad.currentTier?.tier || "Unranked";
-      const subTier = squad.currentTier?.subTier || "";
-      const rp = squad.currentRankPoint || 0;
-
+      // ===== РОЛИ =====
       const rolesGiven = [];
 
       async function give(roleName) {
@@ -205,16 +216,24 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       await give(getRankRoleName(tier, subTier));
+      await give(getFppAdrRole(fppAdr));
       await give(getRankedAdrRole(rankedAdr));
       await give(getRankedDuoAdrRole(duoAdr));
+      await give(getFppKdRole(fppKd));
       await give(getRankedKdRole(rankedKd));
       await give(getRankedDuoKdRole(duoKd));
 
+      // ===== EMBED =====
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
         .setTitle("📊 PUBG STATS")
         .setDescription(
           `**${nickname}**\n\n` +
+
+          `🔵 NORMAL SQUAD\n` +
+          `🎮 Games: ${fppGames}\n` +
+          `💥 ADR: ${fppAdr}\n` +
+          `🔫 KD: ${fppKd.toFixed(2)}\n\n` +
 
           `🏆 RANKED SQUAD\n` +
           `🎖 Rank: ${tier} ${subTier}\n` +
@@ -235,68 +254,9 @@ client.on('interactionCreate', async (interaction) => {
 
     } catch (err) {
       console.log(err);
-      await interaction.editReply("❌ Ошибка API");
+      await interaction.editReply("❌ Ошибка");
     }
   }
 });
-
-
-// ===== АВТО КОМНАТЫ =====
-let roomId = 1;
-const rooms = new Map();
-
-client.on('voiceStateUpdate', async (oldState, newState) => {
-
-  if (newState.channel && newState.channel.name === "СОЗДАТЬ ADR RANKED") {
-
-    const guild = newState.guild;
-    const member = newState.member;
-
-    const voice = await guild.channels.create({
-      name: `ADR RANKED #${roomId}`,
-      type: ChannelType.GuildVoice,
-      parent: newState.channel.parent
-    });
-
-    const text = await guild.channels.create({
-      name: `ADR RANKED #${roomId}`,
-      type: ChannelType.GuildText,
-      parent: newState.channel.parent
-    });
-
-    roomId++;
-
-    await member.voice.setChannel(voice);
-
-    rooms.set(voice.id, {
-      textId: text.id,
-      owner: member.id
-    });
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('200').setLabel('200+').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('250').setLabel('250+').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('300').setLabel('300+').setStyle(ButtonStyle.Danger)
-    );
-
-    await text.send({
-      content: `<@${member.id}> выбери ADR`,
-      components: [row]
-    });
-  }
-
-  if (oldState.channel && rooms.has(oldState.channel.id)) {
-    if (oldState.channel.members.size === 0) {
-      const data = rooms.get(oldState.channel.id);
-
-      const text = oldState.guild.channels.cache.get(data.textId);
-      if (text) await text.delete();
-
-      await oldState.channel.delete();
-      rooms.delete(oldState.channel.id);
-    }
-  }
-});
-
 
 client.login(process.env.DISCORD_TOKEN);
