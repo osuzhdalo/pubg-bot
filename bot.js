@@ -12,11 +12,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessages
   ]
 });
-  ]
-});
-  ]
-});
-
 const PUBG_API = "https://api.pubg.com/shards/steam";
 
 // ===== ВХОД (REGISTERED) =====
