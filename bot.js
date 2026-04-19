@@ -1,125 +1,127 @@
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { 
+  Client, 
+  GatewayIntentBits, 
+  REST, 
+  Routes, 
+  SlashCommandBuilder, 
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require('discord.js');
+
 const axios = require('axios');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates
+  ]
 });
 
 const PUBG_API = "https://api.pubg.com/shards/steam";
 
-// ===== ВХОД (REGISTERED) =====
+// ===== АВТО КОМНАТЫ =====
+let roomId = 1;
+const tempRooms = new Map();
+
+// ===== ВХОД =====
 client.on('guildMemberAdd', async (member) => {
   const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
-  if (role) {
-    try {
-      await member.roles.add(role);
-    } catch (e) {
-      console.log("Ошибка REGISTERED:", e.message);
+  if (role) await member.roles.add(role);
+});
+
+// ===== VOICE =====
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  const join = newState.channel;
+  const leave = oldState.channel;
+
+  // СОЗДАНИЕ КОМНАТЫ
+  if (join && join.name === "СОЗДАТЬ ADR RANKED") {
+    const guild = newState.guild;
+
+    const newChannel = await guild.channels.create({
+      name: `RANKED #${roomId++}`,
+      type: 2,
+      parent: join.parent
+    });
+
+    tempRooms.set(newChannel.id, true);
+
+    await newState.setChannel(newChannel);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('adr200').setLabel('200+').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('adr250').setLabel('250+').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('adr300').setLabel('300+').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('kick').setLabel('Выгнать').setStyle(ButtonStyle.Danger)
+    );
+
+    const textChannel = guild.channels.cache.find(c => c.name.includes("регистрация"));
+
+    if (textChannel) {
+      textChannel.send({
+        content: `🎮 ${newState.member}, настрой комнату ${newChannel.name}`,
+        components: [row]
+      });
+    }
+  }
+
+  // УДАЛЕНИЕ
+  if (leave && tempRooms.has(leave.id)) {
+    if (leave.members.size === 0) {
+      await leave.delete();
+      tempRooms.delete(leave.id);
     }
   }
 });
 
-// ===== ADR =====
-function getFppAdrRole(adr) {
-  if (adr >= 350) return "FPP ADR 350+";
-  if (adr >= 300) return "FPP ADR 300+";
-  if (adr >= 250) return "FPP ADR 250+";
-  if (adr >= 200) return "FPP ADR 200+";
-  if (adr >= 100) return "FPP ADR 100+";
-  return null;
-}
-
-function getRankedAdrRole(adr) {
-  if (adr >= 350) return "RANKED ADR 350+";
-  if (adr >= 300) return "RANKED ADR 300+";
-  if (adr >= 250) return "RANKED ADR 250+";
-  if (adr >= 200) return "RANKED ADR 200+";
-  if (adr >= 100) return "RANKED ADR 100+";
-  return null;
-}
-
-function getRankedDuoAdrRole(adr) {
-  if (adr >= 350) return "RANKED DUO ADR 350+";
-  if (adr >= 300) return "RANKED DUO ADR 300+";
-  if (adr >= 250) return "RANKED DUO ADR 250+";
-  if (adr >= 200) return "RANKED DUO ADR 200+";
-  if (adr >= 100) return "RANKED DUO ADR 100+";
-  return null;
-}
-
-// ===== KD =====
-function getFppKdRole(kd) {
-  if (kd >= 2) return "FPP KD 2+";
-  if (kd >= 1.5) return "FPP KD 1.5+";
-  if (kd >= 1) return "FPP KD 1+";
-  return null;
-}
-
-function getRankedKdRole(kd) {
-  if (kd >= 2) return "RANKED KD 2+";
-  if (kd >= 1.5) return "RANKED KD 1.5+";
-  if (kd >= 1) return "RANKED KD 1+";
-  return null;
-}
-
-function getRankedDuoKdRole(kd) {
-  if (kd >= 2) return "RANKED DUO KD 2+";
-  if (kd >= 1.5) return "RANKED DUO KD 1.5+";
-  if (kd >= 1) return "RANKED DUO KD 1+";
-  return null;
-}
-
-// ===== RANK =====
-function getRankRoleName(tier, subTier) {
-  if (!tier || !subTier) return null;
-  const formatted = tier.charAt(0) + tier.slice(1).toLowerCase();
-  return `${formatted} ${subTier}`;
-}
-
-// ===== ВСЕ РОЛИ =====
-const ALL_ROLES = [
-  "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+","FPP ADR 200+","FPP ADR 100+",
-  "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+","RANKED ADR 200+","RANKED ADR 100+",
-
-  "RANKED DUO ADR 350+","RANKED DUO ADR 300+","RANKED DUO ADR 250+","RANKED DUO ADR 200+","RANKED DUO ADR 100+",
-
-  "FPP KD 2+","FPP KD 1.5+","FPP KD 1+",
-  "RANKED KD 2+","RANKED KD 1.5+","RANKED KD 1+",
-
-  "RANKED DUO KD 2+","RANKED DUO KD 1.5+","RANKED DUO KD 1+",
-
-  "Bronze 4","Bronze 3","Bronze 2","Bronze 1",
-  "Silver 4","Silver 3","Silver 2","Silver 1",
-  "Gold 4","Gold 3","Gold 2","Gold 1",
-  "Platinum 4","Platinum 3","Platinum 2","Platinum 1",
-  "Diamond 4","Diamond 3","Diamond 2","Diamond 1",
-  "Master","Grandmaster"
-];
-
-client.once('ready', async () => {
-  console.log(`Бот запущен как ${client.user.tag}`);
-
-  const commands = [
-    new SlashCommandBuilder()
-      .setName('stats')
-      .setDescription('PUBG статистика')
-      .addStringOption(option =>
-        option.setName('nickname')
-          .setDescription('Ник игрока')
-          .setRequired(true))
-  ].map(cmd => cmd.toJSON());
-
-  const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-
-  await rest.put(
-    Routes.applicationCommands(process.env.CLIENT_ID),
-    { body: commands }
-  );
-});
-
+// ===== КНОПКИ + КОМАНДА =====
 client.on('interactionCreate', async (interaction) => {
+
+  // ===== КНОПКИ =====
+  if (interaction.isButton()) {
+    const member = interaction.member;
+    const channel = member.voice.channel;
+
+    if (!channel) {
+      return interaction.reply({ content: "❌ Ты не в комнате", ephemeral: true });
+    }
+
+    if (interaction.customId === "kick") {
+      for (const m of channel.members.values()) {
+        await m.voice.disconnect();
+      }
+      return interaction.reply("🚪 Все выгнаны");
+    }
+
+    let roleName;
+
+    if (interaction.customId === "adr200") roleName = "RANKED ADR 200+";
+    if (interaction.customId === "adr250") roleName = "RANKED ADR 250+";
+    if (interaction.customId === "adr300") roleName = "RANKED ADR 300+";
+
+    const role = interaction.guild.roles.cache.find(r => r.name === roleName);
+    if (!role) return interaction.reply("❌ Нет роли");
+
+    await channel.permissionOverwrites.set([
+      {
+        id: interaction.guild.roles.everyone.id,
+        deny: ["Connect"]
+      },
+      {
+        id: role.id,
+        allow: ["Connect"]
+      }
+    ]);
+
+    return interaction.reply(`✅ Доступ: ${roleName}`);
+  }
+
+  // ===== SLASH =====
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'stats') {
@@ -137,12 +139,11 @@ client.on('interactionCreate', async (interaction) => {
         await member.roles.remove(regRole);
       }
 
-      // СМЕНА НИКА
+      // НИК
       if (member.manageable) {
         try { await member.setNickname(nickname); } catch {}
       }
 
-      // PLAYER
       const playerRes = await axios.get(
         `${PUBG_API}/players?filter[playerNames]=${nickname}`,
         {
@@ -159,7 +160,6 @@ client.on('interactionCreate', async (interaction) => {
 
       const playerId = playerRes.data.data[0].id;
 
-      // SEASON
       const seasonRes = await axios.get(`${PUBG_API}/seasons`, {
         headers: {
           Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
@@ -169,7 +169,6 @@ client.on('interactionCreate', async (interaction) => {
 
       const seasonId = seasonRes.data.data.find(s => s.attributes.isCurrentSeason).id;
 
-      // NORMAL
       const normalRes = await axios.get(
         `${PUBG_API}/players/${playerId}/seasons/${seasonId}`,
         {
@@ -187,10 +186,7 @@ client.on('interactionCreate', async (interaction) => {
       const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
       const fppKd = fppGames ? (normal.kills / fppGames) : 0;
 
-      // RANKED
-      let ranked = {};
-      let duo = {};
-
+      let ranked = {}, duo = {};
       let rankedGames = 0, rankedAdr = 0, rankedKd = 0;
       let duoGames = 0, duoAdr = 0, duoKd = 0;
 
@@ -209,8 +205,8 @@ client.on('interactionCreate', async (interaction) => {
 
         const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
 
-        ranked = rankedStats['squad'] || rankedStats['squad-fpp'] || {};
-        duo = rankedStats['duo'] || rankedStats['duo-fpp'] || {};
+        ranked = rankedStats['squad'] || {};
+        duo = rankedStats['duo'] || {};
 
         rankedGames = ranked.roundsPlayed || 0;
         rankedAdr = rankedGames ? Math.round(ranked.damageDealt / rankedGames) : 0;
@@ -226,61 +222,20 @@ client.on('interactionCreate', async (interaction) => {
 
       } catch {}
 
-      // УДАЛЯЕМ СТАРЫЕ РОЛИ
-      for (const roleName of ALL_ROLES) {
-        const role = guild.roles.cache.find(r => r.name === roleName);
-        if (role && member.roles.cache.has(role.id)) {
-          if (role.position < guild.members.me.roles.highest.position) {
-            await member.roles.remove(role);
-          }
-        }
-      }
-
-      const givenRoles = [];
-
-      async function give(roleName) {
-        if (!roleName) return;
-        const role = guild.roles.cache.find(r => r.name === roleName);
-        if (role && role.position < guild.members.me.roles.highest.position) {
-          await member.roles.add(role);
-          givenRoles.push(role.name);
-        }
-      }
-
-      // ВЫДАЧА
-      await give(getRankRoleName(tier, subTier));
-      await give(getFppAdrRole(fppAdr));
-      await give(getRankedAdrRole(rankedAdr));
-      await give(getRankedDuoAdrRole(duoAdr));
-      await give(getFppKdRole(fppKd));
-      await give(getRankedKdRole(rankedKd));
-      await give(getRankedDuoKdRole(duoKd));
-
-      // EMBED
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
         .setTitle("📊 PUBG STATS")
         .setDescription(
           `**${nickname}**\n\n` +
 
-          `🔵 NORMAL SQUAD\n` +
-          `🎮 Games: ${fppGames}\n` +
-          `💥 ADR: ${fppAdr}\n` +
-          `🔫 KD: ${fppKd.toFixed(2)}\n\n` +
+          `🔵 NORMAL\n` +
+          `🎮 ${fppGames}\n💥 ${fppAdr}\n🔫 ${fppKd.toFixed(2)}\n\n` +
 
-          `🏆 RANKED SQUAD\n` +
-          `🎖 Rank: ${tier} ${subTier}\n` +
-          `💠 RP: ${rp}\n` +
-          `🎮 Games: ${rankedGames}\n` +
-          `💥 ADR: ${rankedAdr}\n` +
-          `🔫 KD: ${rankedKd.toFixed(2)}\n\n` +
+          `🏆 RANKED\n` +
+          `🎖 ${tier} ${subTier}\n💠 ${rp}\n🎮 ${rankedGames}\n💥 ${rankedAdr}\n🔫 ${rankedKd.toFixed(2)}\n\n` +
 
-          `👥 RANKED DUO\n` +
-          `🎮 Games: ${duoGames}\n` +
-          `💥 ADR: ${duoAdr}\n` +
-          `🔫 KD: ${duoKd.toFixed(2)}\n\n` +
-
-          `🟢 Роли: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
+          `👥 DUO\n` +
+          `🎮 ${duoGames}\n💥 ${duoAdr}\n🔫 ${duoKd.toFixed(2)}`
         );
 
       await interaction.editReply({ embeds: [embed] });
