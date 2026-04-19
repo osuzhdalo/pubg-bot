@@ -297,19 +297,6 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-const {
-  ChannelType,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  PermissionsBitField
-} = require('discord.js');
-
-const CREATE_CHANNEL_ID = "1495412453016600636";
-
-const adrCounters = { "200": 0, "250": 0, "300": 0 };
-const activeRooms = new Map();
-
 
 // ===== КОМНАТЫ (ФИНАЛ С ФИКСАМИ) =====
 
