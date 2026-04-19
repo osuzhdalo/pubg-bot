@@ -7,7 +7,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildVoiceStates // 🔥 ВАЖНО
   ]
 });
 const PUBG_API = "https://api.pubg.com/shards/steam";
@@ -302,23 +302,23 @@ const {
   PermissionsBitField
 } = require('discord.js');
 
-// ВАЖНО: сюда вставь ID канала "СОЗДАТЬ ADR RANKED"
 const CREATE_CHANNEL_ID = "1495412453016600636";
 
 let roomCounter = 1;
 const activeRooms = new Map();
 
+// ===== СОЗДАНИЕ =====
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
-    // === СОЗДАНИЕ ===
-    if (newState.channelId === CREATE_CHANNEL_ID) {
+    if (!newState.channelId) return;
 
+    if (newState.channelId === CREATE_CHANNEL_ID) {
       const guild = newState.guild;
 
       const room = await guild.channels.create({
         name: `ADR RANKED #${roomCounter}`,
         type: ChannelType.GuildVoice,
-        parent: newState.channel.parentId,
+        parent: newState.channel.parentId
       });
 
       roomCounter++;
@@ -329,75 +329,68 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       await newState.setChannel(room);
 
-      // кнопки
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('adr_250').setLabel('250+').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('adr_300').setLabel('300+').setStyle(ButtonStyle.Danger)
       );
 
-      // 🔥 ВОТ ЭТО ГЛАВНОЕ — пишем В ЧАТ ВОЙС КАНАЛА
-      setTimeout(async () => {
-        try {
-          await room.send({
-            content: `🎯 <@${newState.member.id}> выбери порог ADR`,
-            components: [row]
-          });
-        } catch (e) {
-          console.log("НЕ УДАЛОСЬ НАПИСАТЬ В ЧАТ ВОЙС:", e.message);
-        }
-      }, 1500);
+      await room.send({
+        content: `🎯 <@${newState.member.id}> выбери порог ADR`,
+        components: [row]
+      });
     }
 
-    // === УДАЛЕНИЕ ===
+    // ===== УДАЛЕНИЕ =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
-
       const room = oldState.guild.channels.cache.get(oldState.channelId);
 
-      if (room && room.members.size === 0) {
-        await room.delete().catch(() => {});
-        activeRooms.delete(oldState.channelId);
-      }
+      // 🔥 ФИКС: небольшая задержка (Discord иногда лагает)
+      setTimeout(async () => {
+        if (room && room.members.size === 0) {
+          await room.delete().catch(() => {});
+          activeRooms.delete(oldState.channelId);
+        }
+      }, 1000);
     }
 
   } catch (err) {
-    console.log("VOICE ERROR:", err);
+    console.log("ROOM ERROR:", err);
   }
 });
 
-
-// === КНОПКИ ===
+// ===== КНОПКИ =====
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
-    const entry = [...activeRooms.entries()]
+    const roomEntry = [...activeRooms.entries()]
       .find(([id, data]) => data.owner === interaction.user.id);
 
-    if (!entry) return interaction.deferUpdate();
+    if (!roomEntry) {
+      return interaction.deferUpdate(); // фикс ошибки
+    }
 
-    const [roomId] = entry;
+    const [roomId] = roomEntry;
     const room = interaction.guild.channels.cache.get(roomId);
 
-    let roleName = null;
-    let number = null;
+    let minRole = null;
+    let adrValue = null;
 
     if (interaction.customId === 'adr_200') {
-      roleName = "RANKED ADR 200+";
-      number = 200;
+      minRole = "RANKED ADR 200+";
+      adrValue = "200+";
     }
-
     if (interaction.customId === 'adr_250') {
-      roleName = "RANKED ADR 250+";
-      number = 250;
+      minRole = "RANKED ADR 250+";
+      adrValue = "250+";
     }
-
     if (interaction.customId === 'adr_300') {
-      roleName = "RANKED ADR 300+";
-      number = 300;
+      minRole = "RANKED ADR 300+";
+      adrValue = "300+";
     }
 
-    const baseRole = interaction.guild.roles.cache.find(r => r.name === roleName);
+    const baseRole = interaction.guild.roles.cache.find(r => r.name === minRole);
     if (!baseRole) {
       return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
     }
@@ -421,16 +414,21 @@ client.on('interactionCreate', async (interaction) => {
     });
 
     await room.permissionOverwrites.set(perms);
+    await room.setName(`ADR RANKED ${adrValue}`);
 
-    await room.setName(`ADR RANKED ${number}+`);
-
+    // ✅ ФИКС ОШИБКИ КНОПКИ
     await interaction.update({
-      content: `✅ Вход только для ${roleName} и выше`,
+      content: `✅ Вход: ${minRole} и выше`,
       components: []
     });
 
   } catch (err) {
     console.log("BUTTON ERROR:", err);
+
+    // 🔥 ГАРАНТИЯ что ошибки не будет
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.deferUpdate().catch(() => {});
+    }
   }
 });
 client.login(process.env.DISCORD_TOKEN);
