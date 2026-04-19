@@ -23,7 +23,7 @@ function getRankedAdrRole(adr) {
   if (adr >= 350) return "RANKED ADR 350+";
   if (adr >= 300) return "RANKED ADR 300+";
   if (adr >= 250) return "RANKED ADR 250+";
-  if (adr >= 200) return "RANKED ADR 200+"; // ✅ ВОТ ТУТ ПЛЮС
+  if (adr >= 200) return "RANKED ADR 200+";
   if (adr >= 100) return "RANKED ADR 100+";
   return null;
 }
@@ -103,14 +103,12 @@ client.on('interactionCreate', async (interaction) => {
       try {
         if (member && member.manageable) {
           await member.setNickname(nickname);
-        } else {
-          console.log("❌ Не могу изменить ник (нет прав)");
         }
       } catch (e) {
         console.log("Ошибка смены ника:", e.message);
       }
 
-      // ===== PUBG API =====
+      // ===== PLAYER =====
       const playerRes = await axios.get(
         `${PUBG_API}/players?filter[playerNames]=${nickname}`,
         {
@@ -127,6 +125,7 @@ client.on('interactionCreate', async (interaction) => {
 
       const playerId = playerRes.data.data[0].id;
 
+      // ===== SEASON =====
       const seasonRes = await axios.get(`${PUBG_API}/seasons`, {
         headers: {
           Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
@@ -136,6 +135,7 @@ client.on('interactionCreate', async (interaction) => {
 
       const seasonId = seasonRes.data.data.find(s => s.attributes.isCurrentSeason).id;
 
+      // ===== NORMAL =====
       const normalRes = await axios.get(
         `${PUBG_API}/players/${playerId}/seasons/${seasonId}`,
         {
@@ -153,6 +153,7 @@ client.on('interactionCreate', async (interaction) => {
       const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
       const fppKd = fppGames ? (normal.kills / fppGames) : 0;
 
+      // ===== RANKED =====
       let ranked = {};
       let rankedGames = 0;
       let rankedAdr = 0;
@@ -206,19 +207,33 @@ client.on('interactionCreate', async (interaction) => {
         }
       }
 
+      // ===== ВЫДАЁМ =====
       await give(getRankRoleName(tier, subTier));
       await give(getFppAdrRole(fppAdr));
       await give(getRankedAdrRole(rankedAdr));
       await give(getFppKdRole(fppKd));
       await give(getRankedKdRole(rankedKd));
 
+      // ===== EMBED (ПОЛНЫЙ) =====
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
         .setTitle("📊 PUBG STATS")
         .setDescription(
           `**${nickname}**\n\n` +
-          `💥 Ranked ADR: ${rankedAdr}\n\n` +
-          `🟢 Роли: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
+
+          `🔵 NORMAL SQUAD\n` +
+          `🎮 Games: ${fppGames}\n` +
+          `💥 ADR: ${fppAdr}\n` +
+          `🔫 KD: ${fppKd.toFixed(2)}\n\n` +
+
+          `🏆 RANKED SQUAD\n` +
+          `🎖 Rank: ${tier} ${subTier}\n` +
+          `💠 RP: ${rp}\n` +
+          `🎮 Games: ${rankedGames}\n` +
+          `💥 ADR: ${rankedAdr}\n` +
+          `🔫 KD: ${rankedKd.toFixed(2)}\n\n` +
+
+          `🟢 Роли выданы: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
         );
 
       await interaction.editReply({ embeds: [embed] });
