@@ -302,7 +302,7 @@ const {
   PermissionsBitField
 } = require('discord.js');
 
-const CREATE_CHANNEL_ID = "ВСТАВЬ_ID";
+const CREATE_CHANNEL_ID = "ТВОЙ_ID";
 
 let roomCounter = 1;
 const activeRooms = new Map();
@@ -315,16 +315,16 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       const guild = newState.guild;
 
-      // 🎧 создаём голосовую
+      // 🎧 создаем голосовой
       const voice = await guild.channels.create({
-        name: `ADR RANKED #${roomCounter}`,
+        name: `Ranked Adr ${roomCounter}`,
         type: ChannelType.GuildVoice,
         parent: newState.channel.parentId
       });
 
-      // 💬 создаём текстовую (ОБЯЗАТЕЛЬНО)
+      // 💬 создаем чат (ЭТО И ЕСТЬ ТО ЧТО ТЫ ВИДИШЬ СПРАВА)
       const text = await guild.channels.create({
-        name: `adr-ranked-${roomCounter}`,
+        name: `ranked-adr-${roomCounter}`,
         type: ChannelType.GuildText,
         parent: newState.channel.parentId
       });
@@ -345,7 +345,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       );
 
       await text.send({
-        content: `🎯 <@${newState.member.id}> выбери порог ADR`,
+        content: `🎯 <@${newState.member.id}> выбери ADR`,
         components: [row]
       });
     }
@@ -353,6 +353,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     // 🧹 удаление
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
       const data = activeRooms.get(oldState.channelId);
+
       const voice = oldState.guild.channels.cache.get(oldState.channelId);
       const text = oldState.guild.channels.cache.get(data.textId);
 
@@ -372,15 +373,14 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
-    await interaction.deferUpdate(); // 🔥 фикс ошибки
+    await interaction.deferUpdate();
 
     const roomEntry = [...activeRooms.entries()]
       .find(([id, data]) => data.owner === interaction.user.id);
 
     if (!roomEntry) return;
 
-    const [roomId, data] = roomEntry;
-
+    const [roomId] = roomEntry;
     const voice = interaction.guild.channels.cache.get(roomId);
 
     let minRole = null;
@@ -411,8 +411,7 @@ client.on('interactionCreate', async (interaction) => {
     });
 
     await voice.permissionOverwrites.set(perms);
-
-    await voice.setName(`ADR RANKED ${interaction.customId.split('_')[1]}+`);
+    await voice.setName(`Ranked Adr ${interaction.customId.split('_')[1]}`);
 
   } catch (err) {
     console.log("BUTTON ERROR:", err);
