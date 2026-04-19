@@ -302,8 +302,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionsBitField,
-  WebhookClient
+  PermissionsBitField
 } = require('discord.js');
 
 const CREATE_CHANNEL_ID = "1495412453016600636";
@@ -317,7 +316,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
     if (newState.channelId === CREATE_CHANNEL_ID && oldState.channelId !== CREATE_CHANNEL_ID) {
 
-      const room = await newState.guild.channels.create({
+      const guild = newState.guild;
+
+      const room = await guild.channels.create({
         name: "⏳ ADR RANKED (ожидание)",
         type: ChannelType.GuildVoice,
         parent: newState.channel.parentId,
@@ -331,39 +332,42 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       await newState.setChannel(room);
 
-      // 🔥 создаём webhook для чата войса
-      const webhook = await room.createWebhook({
-        name: "ADR BOT"
+      // 🔥 НАХОДИМ ТЕКСТОВЫЙ КАНАЛ В КАТЕГОРИИ
+      const textChannel = guild.channels.cache.find(c =>
+        c.type === ChannelType.GuildText &&
+        c.parentId === room.parentId
+      );
+
+      if (!textChannel) return;
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`adr_200_${room.id}`).setLabel('200+').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`adr_250_${room.id}`).setLabel('250+').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`adr_300_${room.id}`).setLabel('300+').setStyle(ButtonStyle.Danger)
+      );
+
+      await textChannel.send({
+        content: `🎯 <@${newState.member.id}> выбери ADR для комнаты`,
+        components: [row]
       });
-
-      setTimeout(async () => {
-
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId(`adr_200_${room.id}`).setLabel('200+').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId(`adr_250_${room.id}`).setLabel('250+').setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`adr_300_${room.id}`).setLabel('300+').setStyle(ButtonStyle.Danger)
-        );
-
-        await webhook.send({
-          content: `🎯 <@${newState.member.id}> выбери ADR`,
-          components: [row]
-        });
-
-      }, 800);
     }
 
-    // ===== УДАЛЕНИЕ =====
+    // ===== УДАЛЕНИЕ (ЦИКЛ) =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
-      setTimeout(async () => {
+      const interval = setInterval(async () => {
         const room = oldState.guild.channels.cache.get(oldState.channelId);
-        if (!room) return;
+        if (!room) {
+          clearInterval(interval);
+          return;
+        }
 
         const humans = room.members.filter(m => !m.user.bot);
 
         if (humans.size === 0) {
           activeRooms.delete(oldState.channelId);
           await room.delete().catch(() => {});
+          clearInterval(interval);
         }
 
       }, 2000);
@@ -388,7 +392,7 @@ client.on('interactionCreate', async (interaction) => {
     const voiceChannel = interaction.guild.channels.cache.get(roomId);
     if (!voiceChannel) return;
 
-    const data = activeRooms.get(voiceChannel.id);
+    const data = activeRooms.get(roomId);
     if (!data) return;
 
     adrCounters[adrKey]++;
@@ -418,15 +422,10 @@ client.on('interactionCreate', async (interaction) => {
 
     data.adr = adrKey;
 
-    // ===== ПИШЕМ В ЧАТ =====
-    const webhooks = await voiceChannel.fetchWebhooks();
-    const webhook = webhooks.first();
-
-    if (webhook) {
-      await webhook.send({
-        content: `✅ <@${interaction.user.id}> выбрал ADR ${adrKey}+`
-      });
-    }
+    // ===== ПИШЕМ В ТЕКСТОВЫЙ КАНАЛ =====
+    await interaction.channel.send(
+      `✅ <@${interaction.user.id}> выбрал ADR ${adrKey}+`
+    );
 
   } catch (err) {
     console.log("BUTTON ERROR:", err);
