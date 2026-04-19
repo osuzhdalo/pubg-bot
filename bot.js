@@ -325,29 +325,20 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         userLimit: 4
       });
 
+      const textChannel = await guild.channels.create({
+        name: `adr-${newState.member.user.username}`,
+        type: ChannelType.GuildText,
+        parent: newState.channel.parentId
+      });
+
       activeRooms.set(room.id, {
         owner: newState.member.id,
-        adr: null
+        adr: null,
+        textId: textChannel.id
       });
 
       await newState.setChannel(room);
 
-      // ===== НАЙТИ ИЛИ СОЗДАТЬ ТЕКСТОВЫЙ КАНАЛ =====
-      let textChannel = guild.channels.cache.find(c =>
-        c.type === ChannelType.GuildText &&
-        c.parentId === room.parentId &&
-        c.name === "adr-выбор"
-      );
-
-      if (!textChannel) {
-        textChannel = await guild.channels.create({
-          name: "adr-выбор",
-          type: ChannelType.GuildText,
-          parent: room.parentId
-        });
-      }
-
-      // ===== КНОПКИ =====
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`adr_150_${room.id}`).setLabel('150+').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(`adr_200_${room.id}`).setLabel('200+').setStyle(ButtonStyle.Primary),
@@ -356,27 +347,40 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       );
 
       await textChannel.send({
-        content: `🎯 <@${newState.member.id}> выбери ADR для комнаты`,
+        content: `🎯 <@${newState.member.id}> выбери ADR`,
         components: [row]
       });
     }
 
-    // ===== УДАЛЕНИЕ =====
+    // ===== ВЫХОД =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
-      const interval = setInterval(async () => {
-        const room = oldState.guild.channels.cache.get(oldState.channelId);
-        if (!room) return clearInterval(interval);
+      const data = activeRooms.get(oldState.channelId);
+      const room = oldState.guild.channels.cache.get(oldState.channelId);
+      if (!room) return;
 
-        const humans = room.members.filter(m => !m.user.bot);
+      const humans = room.members.filter(m => !m.user.bot);
 
-        if (humans.size === 0) {
-          activeRooms.delete(oldState.channelId);
-          await room.delete().catch(() => {});
-          clearInterval(interval);
+      // 👑 ПЕРЕДАЧА ВЛАДЕЛЬЦА
+      if (data.owner === oldState.member.id && humans.size > 0) {
+        const newOwner = humans.first();
+        data.owner = newOwner.id;
+
+        const text = oldState.guild.channels.cache.get(data.textId);
+        if (text) {
+          text.send(`👑 Новый владелец: <@${newOwner.id}>`);
         }
+      }
 
-      }, 2000);
+      // 🧨 УДАЛЕНИЕ
+      if (humans.size === 0) {
+        activeRooms.delete(oldState.channelId);
+
+        const text = oldState.guild.channels.cache.get(data.textId);
+
+        if (text) await text.delete().catch(() => {});
+        await room.delete().catch(() => {});
+      }
     }
 
   } catch (err) {
@@ -390,30 +394,99 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
-    await interaction.deferUpdate();
-
-    const [type, adrKey, roomId] = interaction.customId.split("_");
-    if (type !== "adr") return;
+    const [type, value, roomId] = interaction.customId.split("_");
 
     const voiceChannel = interaction.guild.channels.cache.get(roomId);
-    if (!voiceChannel) return;
-
     const data = activeRooms.get(roomId);
-    if (!data) return;
 
-    adrCounters[adrKey]++;
-    const number = adrCounters[adrKey];
+    if (!voiceChannel || !data) return;
 
-    // ===== НАЗВАНИЕ =====
-    const newName = `🎯 ADR RANKED ${adrKey}+ #${number}`;
-    await voiceChannel.setName(newName);
+    const textChannel = interaction.guild.channels.cache.get(data.textId);
 
-    data.adr = adrKey;
+    // ===== ADR =====
+    if (type === "adr") {
 
-    // ===== СООБЩЕНИЕ =====
-    await interaction.channel.send(
-      `✅ <@${interaction.user.id}> выбрал ADR ${adrKey}+`
-    );
+      if (interaction.user.id !== data.owner) {
+        return interaction.reply({
+          content: "❌ Только владелец",
+          ephemeral: true
+        });
+      }
+
+      await interaction.deferUpdate();
+
+      adrCounters[value]++;
+      const number = adrCounters[value];
+
+      const baseRole = interaction.guild.roles.cache.find(r => r.name === `RANKED ADR ${value}+`);
+      if (!baseRole) return;
+
+      const allowedRoles = interaction.guild.roles.cache.filter(r =>
+        r.name.startsWith("RANKED ADR") &&
+        r.position >= baseRole.position
+      );
+
+      const perms = [
+        { id: interaction.guild.roles.everyone, deny: [PermissionsBitField.Flags.Connect] }
+      ];
+
+      allowedRoles.forEach(r => {
+        perms.push({ id: r.id, allow: [PermissionsBitField.Flags.Connect] });
+      });
+
+      perms.push({
+        id: data.owner,
+        allow: [PermissionsBitField.Flags.Connect]
+      });
+
+      await voiceChannel.permissionOverwrites.set(perms);
+
+      const newName = `🎯 ADR RANKED ${value}+ #${number}`;
+      await voiceChannel.setName(newName);
+
+      data.adr = value;
+
+      // ===== КНОПКИ КИКА =====
+      const members = voiceChannel.members.filter(m => !m.user.bot);
+
+      const kickRow = new ActionRowBuilder();
+
+      members.forEach(m => {
+        if (m.id !== data.owner) {
+          kickRow.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`kick_${m.id}_${roomId}`)
+              .setLabel(`Кик ${m.user.username}`)
+              .setStyle(ButtonStyle.Secondary)
+          );
+        }
+      });
+
+      await textChannel.send({
+        content: `✅ ADR ${value}+ установлен`,
+        components: kickRow.components.length ? [kickRow] : []
+      });
+    }
+
+    // ===== КИК =====
+    if (type === "kick") {
+
+      if (interaction.user.id !== data.owner) {
+        return interaction.reply({
+          content: "❌ Только владелец",
+          ephemeral: true
+        });
+      }
+
+      const userId = value;
+      const member = interaction.guild.members.cache.get(userId);
+
+      if (member && member.voice.channel?.id === roomId) {
+        await member.voice.disconnect();
+      }
+
+      await interaction.deferUpdate();
+    }
 
   } catch (err) {
     console.log("BUTTON ERROR:", err);
