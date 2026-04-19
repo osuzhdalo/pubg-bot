@@ -297,8 +297,6 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== КОМНАТЫ FINAL =====
-
 const {
   ChannelType,
   ActionRowBuilder,
@@ -313,16 +311,18 @@ const adrCounters = { "200": 0, "250": 0, "300": 0 };
 const activeRooms = new Map();
 
 
-// ===== СОЗДАНИЕ =====
+// ===== СОЗДАНИЕ КОМНАТЫ =====
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
-
     if (newState.channelId === CREATE_CHANNEL_ID && oldState.channelId !== CREATE_CHANNEL_ID) {
 
-      const room = await newState.guild.channels.create({
-        name: "⏳ ADR RANKED (ожидание)",
+      const guild = newState.guild;
+
+      const room = await guild.channels.create({
+        name: `⏳ ADR RANKED (ожидание)`,
         type: ChannelType.GuildVoice,
-        parent: newState.channel.parentId
+        parent: newState.channel.parentId,
+        userLimit: 4 // ✅ ЛИМИТ 4 ЧЕЛОВЕКА
       });
 
       activeRooms.set(room.id, {
@@ -332,7 +332,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       await newState.setChannel(room);
 
+      // 🔥 ВАЖНО: берём ЧАТ ИМЕННО ЭТОГО ВОЙСА
       setTimeout(async () => {
+        const textChannel = room.messages;
+
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('adr_250').setLabel('250+').setStyle(ButtonStyle.Success),
@@ -347,10 +350,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         } catch (e) {
           console.log("SEND ERROR:", e.message);
         }
-      }, 500);
+
+      }, 1000);
     }
 
-    // ===== УДАЛЕНИЕ МГНОВЕННО =====
+    // ===== УДАЛЕНИЕ =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       const room = oldState.guild.channels.cache.get(oldState.channelId);
@@ -361,6 +365,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       if (humans.size === 0) {
         activeRooms.delete(oldState.channelId);
         await room.delete().catch(() => {});
+        console.log("Удалена комната:", oldState.channelId);
       }
     }
 
@@ -370,46 +375,36 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 
-// ===== КНОПКИ =====
+// ===== КНОПКИ ADR =====
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
-    await interaction.deferUpdate(); // 🔥 ФИКС ОШИБКИ
-
     const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) return;
+    if (!voiceChannel) return interaction.deferUpdate();
 
     const data = activeRooms.get(voiceChannel.id);
-    if (!data) return;
+    if (!data) return interaction.deferUpdate();
 
-    let minRole = null;
     let adrKey = null;
 
-    if (interaction.customId === 'adr_200') {
-      minRole = "RANKED ADR 200+";
-      adrKey = "200";
-    }
-    if (interaction.customId === 'adr_250') {
-      minRole = "RANKED ADR 250+";
-      adrKey = "250";
-    }
-    if (interaction.customId === 'adr_300') {
-      minRole = "RANKED ADR 300+";
-      adrKey = "300";
-    }
+    if (interaction.customId === 'adr_200') adrKey = "200";
+    if (interaction.customId === 'adr_250') adrKey = "250";
+    if (interaction.customId === 'adr_300') adrKey = "300";
 
-    if (!adrKey) return;
+    if (!adrKey) return interaction.deferUpdate();
 
-    const baseRole = interaction.guild.roles.cache.find(r => r.name === minRole);
-    if (!baseRole) {
-      return interaction.followUp({ content: "❌ Нет роли", ephemeral: true });
-    }
-
+    // 🔥 СЧЁТЧИК
     adrCounters[adrKey]++;
     const number = adrCounters[adrKey];
 
     // ===== ПРАВА =====
+    const baseRole = interaction.guild.roles.cache.find(r => r.name === `RANKED ADR ${adrKey}+`);
+
+    if (!baseRole) {
+      return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
+    }
+
     const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
     );
@@ -430,22 +425,21 @@ client.on('interactionCreate', async (interaction) => {
 
     await voiceChannel.permissionOverwrites.set(perms);
 
-    // ===== НАЗВАНИЕ =====
-    await voiceChannel.setName(`🎯 ADR RANKED ${adrKey}+ #${number}`);
+    // ===== ПЕРЕИМЕНОВАНИЕ =====
+    const newName = `🎯 ADR RANKED ${adrKey}+ #${number}`;
+    await voiceChannel.setName(newName);
 
     data.adr = adrKey;
 
-    // ===== ПИШЕМ В ЧАТ КАНАЛА =====
-    try {
-      await voiceChannel.send(
-        `✅ <@${interaction.user.id}> выбрал ${adrKey}+ ADR\n➡ Комната обновлена: 🎯 ADR RANKED ${adrKey}+ #${number}`
-      );
-    } catch (e) {
-      console.log("VOICE CHAT SEND ERROR:", e.message);
-    }
+    // ===== СООБЩЕНИЕ В ЧАТЕ КАНАЛА =====
+    await interaction.update({
+      content: `✅ <@${interaction.user.id}> выбрал ADR ${adrKey}+`,
+      components: []
+    });
 
   } catch (err) {
     console.log("BUTTON ERROR:", err);
+    try { await interaction.deferUpdate(); } catch {}
   }
 });
 client.login(process.env.DISCORD_TOKEN);
