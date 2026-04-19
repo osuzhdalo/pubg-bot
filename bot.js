@@ -51,20 +51,23 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       await newState.setChannel(voice);
 
-      // ===== ОТПРАВКА В ЧАТ ГОЛОСОВОГО КАНАЛА =====
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('200').setLabel('200+').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('250').setLabel('250+').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('300').setLabel('300+').setStyle(ButtonStyle.Primary)
       );
 
-      await voice.send({
-        content: `🎯 <@${newState.member.id}> выбери лимит ADR:`,
-        components: [row]
-      });
+      // ⚠️ ВАЖНО: пишем в системный канал сервера (иначе voice не умеет)
+      const system = newState.guild.systemChannel;
+      if (system) {
+        await system.send({
+          content: `🎯 <@${newState.member.id}> настрой свою комнату ${voice.name}`,
+          components: [row]
+        });
+      }
     }
 
-    // ===== УДАЛЕНИЕ =====
+    // удаление
     if (oldState.channel && rooms.has(oldState.channel.id)) {
       if (oldState.channel.members.size === 0) {
         await oldState.channel.delete().catch(()=>{});
@@ -82,11 +85,15 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.isButton()) {
     try {
-      const voice = interaction.channel;
+      const roomEntry = [...rooms.entries()]
+        .find(([id]) => id);
 
-      if (!rooms.has(voice.id)) return interaction.deferUpdate();
+      if (!roomEntry) return interaction.deferUpdate();
 
-      const room = rooms.get(voice.id);
+      const [voiceId, room] = roomEntry;
+      const voice = interaction.guild.channels.cache.get(voiceId);
+
+      if (!voice) return interaction.deferUpdate();
 
       if (interaction.user.id !== room.owner) {
         return interaction.reply({
@@ -104,10 +111,7 @@ client.on('interactionCreate', async (interaction) => {
       const role = interaction.guild.roles.cache.find(r => r.name === roleName);
 
       if (!role) {
-        return interaction.reply({
-          content: "❌ Нет такой роли",
-          ephemeral: true
-        });
+        return interaction.reply({ content: "❌ Роль не найдена", ephemeral: true });
       }
 
       await voice.permissionOverwrites.set([
@@ -122,7 +126,7 @@ client.on('interactionCreate', async (interaction) => {
       ]);
 
       await interaction.update({
-        content: `✅ Вход: ${roleName}`,
+        content: `✅ Комната настроена: ${roleName}`,
         components: []
       });
 
@@ -132,44 +136,43 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
-  // ===== /stats =====
+  // ===== /stats (ТВОЯ СТАРАЯ ЛОГИКА) =====
   if (interaction.isChatInputCommand()) {
 
     if (interaction.commandName === 'stats') {
-
       const nickname = interaction.options.getString('nickname');
 
       try {
-        await interaction.reply("⏳ Загружаю...");
+        await interaction.deferReply();
 
         const member = interaction.member;
         const guild = interaction.guild;
 
         // убрать REGISTERED
-        const reg = guild.roles.cache.find(r => r.name === "REGISTERED");
-        if (reg && member.roles.cache.has(reg.id)) {
-          await member.roles.remove(reg).catch(()=>{});
+        const regRole = guild.roles.cache.find(r => r.name === "REGISTERED");
+        if (regRole && member.roles.cache.has(regRole.id)) {
+          await member.roles.remove(regRole);
         }
 
+        // PLAYER
         const playerRes = await axios.get(
           `${PUBG_API}/players?filter[playerNames]=${nickname}`,
           {
-            timeout: 5000,
             headers: {
               Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
               Accept: 'application/vnd.api+json'
             }
           }
-        ).catch(() => null);
+        );
 
-        if (!playerRes || !playerRes.data.data.length) {
+        if (!playerRes.data.data.length) {
           return interaction.editReply("❌ Игрок не найден");
         }
 
         const playerId = playerRes.data.data[0].id;
 
+        // SEASON
         const seasonRes = await axios.get(`${PUBG_API}/seasons`, {
-          timeout: 5000,
           headers: {
             Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
             Accept: 'application/vnd.api+json'
@@ -178,10 +181,10 @@ client.on('interactionCreate', async (interaction) => {
 
         const seasonId = seasonRes.data.data.find(s => s.attributes.isCurrentSeason).id;
 
+        // NORMAL
         const normalRes = await axios.get(
           `${PUBG_API}/players/${playerId}/seasons/${seasonId}`,
           {
-            timeout: 5000,
             headers: {
               Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
               Accept: 'application/vnd.api+json'
@@ -196,39 +199,44 @@ client.on('interactionCreate', async (interaction) => {
         const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
         const fppKd = fppGames ? (normal.kills / fppGames) : 0;
 
+        // RANKED
+        let ranked = {};
+        let duo = {};
+
         let rankedGames = 0, rankedAdr = 0, rankedKd = 0;
         let duoGames = 0, duoAdr = 0, duoKd = 0;
-        let tier = "Unranked", subTier = "", rp = 0;
 
-        const rankedRes = await axios.get(
-          `${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`,
-          {
-            timeout: 5000,
-            headers: {
-              Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-              Accept: 'application/vnd.api+json'
+        let tier = "UNRANKED", subTier = "", rp = 0;
+
+        try {
+          const rankedRes = await axios.get(
+            `${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`,
+            {
+              headers: {
+                Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+                Accept: 'application/vnd.api+json'
+              }
             }
-          }
-        ).catch(() => null);
+          );
 
-        if (rankedRes) {
           const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
 
-          const squad = rankedStats['squad'] || {};
-          const duo = rankedStats['duo'] || {};
+          ranked = rankedStats['squad'] || rankedStats['squad-fpp'] || {};
+          duo = rankedStats['duo'] || rankedStats['duo-fpp'] || {};
 
-          rankedGames = squad.roundsPlayed || 0;
-          rankedAdr = rankedGames ? Math.round(squad.damageDealt / rankedGames) : 0;
-          rankedKd = rankedGames ? (squad.kills / rankedGames) : 0;
+          rankedGames = ranked.roundsPlayed || 0;
+          rankedAdr = rankedGames ? Math.round(ranked.damageDealt / rankedGames) : 0;
+          rankedKd = rankedGames ? (ranked.kills / rankedGames) : 0;
 
           duoGames = duo.roundsPlayed || 0;
           duoAdr = duoGames ? Math.round(duo.damageDealt / duoGames) : 0;
           duoKd = duoGames ? (duo.kills / duoGames) : 0;
 
-          tier = squad.currentTier?.tier || "Unranked";
-          subTier = squad.currentTier?.subTier || "";
-          rp = squad.currentRankPoint || 0;
-        }
+          rp = ranked.currentRankPoint || 0;
+          tier = ranked.currentTier?.tier || "UNRANKED";
+          subTier = ranked.currentTier?.subTier || "";
+
+        } catch {}
 
         const embed = new EmbedBuilder()
           .setColor("#2ecc71")
@@ -254,7 +262,7 @@ client.on('interactionCreate', async (interaction) => {
             `🔫 KD: ${duoKd.toFixed(2)}`
           );
 
-        await interaction.editReply({ content: "", embeds: [embed] });
+        await interaction.editReply({ embeds: [embed] });
 
       } catch (err) {
         console.log(err);
@@ -264,7 +272,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ===== КОМАНДА =====
+// ===== REGISTER COMMAND =====
 client.once('ready', async () => {
   console.log(`Запущен: ${client.user.tag}`);
 
@@ -273,7 +281,9 @@ client.once('ready', async () => {
       .setName('stats')
       .setDescription('PUBG статистика')
       .addStringOption(option =>
-        option.setName('nickname').setDescription('Ник').setRequired(true))
+        option.setName('nickname')
+          .setDescription('Ник')
+          .setRequired(true))
   ].map(cmd => cmd.toJSON());
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
