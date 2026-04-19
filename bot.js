@@ -297,7 +297,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== КОМНАТЫ (ФИНАЛ) =====
+// ===== КОМНАТЫ (БЕЗ ТЕКСТОВОГО КАНАЛА) =====
 
 const {
   ChannelType,
@@ -315,49 +315,36 @@ const activeRooms = new Map();
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
 
-    // ===== СОЗДАНИЕ =====
     if (!oldState.channelId && newState.channelId === CREATE_CHANNEL_ID) {
 
-      const guild = newState.guild;
-
-      // голосовая
-      const room = await guild.channels.create({
+      const room = await newState.guild.channels.create({
         name: "⏳ ADR RANKED (ожидание)",
         type: ChannelType.GuildVoice,
         parent: newState.channel.parentId
       });
 
-      // текстовая
-      const textRoom = await guild.channels.create({
-        name: `chat-${newState.member.user.username}`,
-        type: ChannelType.GuildText,
-        parent: newState.channel.parentId
-      });
-
       activeRooms.set(room.id, {
         owner: newState.member.id,
-        adr: null,
-        textId: textRoom.id
+        adr: null
       });
 
       await newState.setChannel(room);
 
-      // кнопки
+      // кнопки (отправляем в системный канал сервера)
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('adr_250').setLabel('250+').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('adr_300').setLabel('300+').setStyle(ButtonStyle.Danger)
       );
 
-      await textRoom.send({
-        content: `🎯 <@${newState.member.id}> выбери ADR`,
+      await newState.guild.systemChannel?.send({
+        content: `🎯 <@${newState.member.id}> выбери ADR для комнаты`,
         components: [row]
       });
     }
 
-    // ===== УДАЛЕНИЕ =====
+    // удаление
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
-
       setTimeout(async () => {
         const room = oldState.guild.channels.cache.get(oldState.channelId);
         if (!room) return;
@@ -365,17 +352,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         const humans = room.members.filter(m => !m.user.bot);
 
         if (humans.size === 0) {
-
-          const data = activeRooms.get(oldState.channelId);
-
-          await room.delete().catch(() => {});
-
-          if (data?.textId) {
-            const text = oldState.guild.channels.cache.get(data.textId);
-            if (text) await text.delete().catch(() => {});
-          }
-
           activeRooms.delete(oldState.channelId);
+          await room.delete().catch(() => {});
         }
 
       }, 1500);
@@ -399,7 +377,7 @@ client.on('interactionCreate', async (interaction) => {
     const data = activeRooms.get(voiceChannel.id);
     if (!data) return interaction.deferUpdate();
 
-    // ===== КИК =====
+    // КИК
     if (interaction.customId.startsWith("kick_")) {
 
       if (interaction.user.id !== data.owner) {
@@ -416,7 +394,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.deferUpdate();
     }
 
-    // ===== ADR =====
+    // ADR
     let minRole = null;
     let adrKey = null;
 
@@ -443,7 +421,7 @@ client.on('interactionCreate', async (interaction) => {
     adrCounters[adrKey]++;
     const number = adrCounters[adrKey];
 
-    // ===== ПРАВА =====
+    // права
     const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
     );
@@ -464,37 +442,16 @@ client.on('interactionCreate', async (interaction) => {
 
     await voiceChannel.permissionOverwrites.set(perms);
 
-    // ===== НАЗВАНИЕ =====
+    // название
     await voiceChannel.setName(`🎯 ADR ${adrKey}+ #${number}`);
 
     data.adr = adrKey;
 
-    // ===== КИК КНОПКИ =====
-    const members = voiceChannel.members.filter(m => !m.user.bot);
-
-    const kickRow = new ActionRowBuilder();
-
-    members.forEach(m => {
-      if (m.id !== data.owner) {
-        kickRow.addComponents(
-          new ButtonBuilder()
-            .setCustomId(`kick_${m.id}`)
-            .setLabel(`Кик ${m.user.username}`)
-            .setStyle(ButtonStyle.Secondary)
-        );
-      }
+    // сообщение
+    await interaction.reply({
+      content: `✅ ADR выбран: ${adrKey}+`,
+      ephemeral: true
     });
-
-    const textChannel = interaction.guild.channels.cache.get(data.textId);
-
-    if (textChannel) {
-      await textChannel.send({
-        content: `✅ Выбран ADR ${adrKey}+`,
-        components: kickRow.components.length ? [kickRow] : []
-      });
-    }
-
-    await interaction.deferUpdate();
 
   } catch (err) {
     console.log("BUTTON ERROR:", err);
