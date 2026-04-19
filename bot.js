@@ -7,7 +7,11 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildMessages
+  ]
+});
   ]
 });
   ]
@@ -301,17 +305,17 @@ client.on('interactionCreate', async (interaction) => {
 });
 const { ChannelType, PermissionsBitField } = require('discord.js');
 
-const ADR_CHANNEL_ID = "1495525233505861633"; // #adr-выбор
+const ADR_CHANNEL_ID = "ID_КАНАЛА"; // канал #adr-выбор
 
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const rooms = new Map();
 
-// ===== СОЗДАНИЕ СООБЩЕНИЯ =====
+// ===== СОЗДАНИЕ МЕНЮ =====
 client.once('ready', async () => {
   const channel = await client.channels.fetch(ADR_CHANNEL_ID);
 
   const msg = await channel.send(
-    "🎯 **Выбери ADR для комнаты:**\n\n🟢 150+\n🔵 200+\n🟡 250+\n🔴 300+"
+    "🎯 **Выбери ADR:**\n\n🟢 150+\n🔵 200+\n🟡 250+\n🔴 300+"
   );
 
   await msg.react("🟢");
@@ -320,8 +324,7 @@ client.once('ready', async () => {
   await msg.react("🔴");
 });
 
-
-// ===== ОБРАБОТКА РЕАКЦИИ =====
+// ===== РЕАКЦИЯ =====
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
 
@@ -339,10 +342,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
     const guild = reaction.message.guild;
     const member = await guild.members.fetch(user.id);
 
-    // должен быть в голосе
-    if (!member.voice.channel) {
-      return;
-    }
+    if (!member.voice.channel) return;
+
+    // ❗ УДАЛЯЕМ СООБЩЕНИЕ
+    await reaction.message.delete().catch(() => {});
 
     counters[adr]++;
     const number = counters[adr];
@@ -385,12 +388,11 @@ client.on('messageReactionAdd', async (reaction, user) => {
     await member.voice.setChannel(channel);
 
   } catch (err) {
-    console.log(err);
+    console.log("REACTION ERROR:", err);
   }
 });
 
-
-// ===== УДАЛЕНИЕ =====
+// ===== УДАЛЕНИЕ КОМНАТ =====
 client.on('voiceStateUpdate', async (oldState) => {
   if (!oldState.channelId) return;
 
