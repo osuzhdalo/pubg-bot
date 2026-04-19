@@ -302,7 +302,8 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionsBitField
+  PermissionsBitField,
+  WebhookClient
 } = require('discord.js');
 
 const CREATE_CHANNEL_ID = "1495412453016600636";
@@ -330,21 +331,25 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       await newState.setChannel(room);
 
-      // КНОПКИ (шлём в interaction через reply позже)
+      // 🔥 создаём webhook для чата войса
+      const webhook = await room.createWebhook({
+        name: "ADR BOT"
+      });
+
       setTimeout(async () => {
+
         const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('adr_250').setLabel('250+').setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId('adr_300').setLabel('300+').setStyle(ButtonStyle.Danger)
+          new ButtonBuilder().setCustomId(`adr_200_${room.id}`).setLabel('200+').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId(`adr_250_${room.id}`).setLabel('250+').setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`adr_300_${room.id}`).setLabel('300+').setStyle(ButtonStyle.Danger)
         );
 
-        try {
-          await newState.member.send({
-            content: `🎯 Выбери ADR для комнаты`,
-            components: [row]
-          });
-        } catch {}
-      }, 500);
+        await webhook.send({
+          content: `🎯 <@${newState.member.id}> выбери ADR`,
+          components: [row]
+        });
+
+      }, 800);
     }
 
     // ===== УДАЛЕНИЕ =====
@@ -375,35 +380,23 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
+    await interaction.deferUpdate();
 
-    const member = interaction.guild.members.cache.get(interaction.user.id);
-    const voiceChannel = member.voice.channel;
+    const [type, adrKey, roomId] = interaction.customId.split("_");
+    if (type !== "adr") return;
 
-    if (!voiceChannel) {
-      return interaction.reply({ content: "❌ Ты не в комнате", ephemeral: true });
-    }
+    const voiceChannel = interaction.guild.channels.cache.get(roomId);
+    if (!voiceChannel) return;
 
     const data = activeRooms.get(voiceChannel.id);
-    if (!data) {
-      return interaction.reply({ content: "❌ Это не комната бота", ephemeral: true });
-    }
-
-    let adrKey = null;
-
-    if (interaction.customId === 'adr_200') adrKey = "200";
-    if (interaction.customId === 'adr_250') adrKey = "250";
-    if (interaction.customId === 'adr_300') adrKey = "300";
-
-    if (!adrKey) return;
+    if (!data) return;
 
     adrCounters[adrKey]++;
     const number = adrCounters[adrKey];
 
-    // ПРАВА
+    // ===== ПРАВА =====
     const baseRole = interaction.guild.roles.cache.find(r => r.name === `RANKED ADR ${adrKey}+`);
-    if (!baseRole) {
-      return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
-    }
+    if (!baseRole) return;
 
     const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
@@ -419,23 +412,24 @@ client.on('interactionCreate', async (interaction) => {
 
     await voiceChannel.permissionOverwrites.set(perms);
 
-    // НАЗВАНИЕ
+    // ===== НАЗВАНИЕ =====
     const newName = `🎯 ADR RANKED ${adrKey}+ #${number}`;
     await voiceChannel.setName(newName);
 
     data.adr = adrKey;
 
-    // ✅ ОТВЕТ (ГАРАНТИРОВАННО РАБОТАЕТ)
-    await interaction.reply({
-      content: `✅ Ты выбрал ${adrKey}+ ADR\n📢 Комната: ${newName}`,
-      ephemeral: false
-    });
+    // ===== ПИШЕМ В ЧАТ =====
+    const webhooks = await voiceChannel.fetchWebhooks();
+    const webhook = webhooks.first();
+
+    if (webhook) {
+      await webhook.send({
+        content: `✅ <@${interaction.user.id}> выбрал ADR ${adrKey}+`
+      });
+    }
 
   } catch (err) {
     console.log("BUTTON ERROR:", err);
-    try {
-      await interaction.reply({ content: "❌ Ошибка", ephemeral: true });
-    } catch {}
   }
 });
 client.login(process.env.DISCORD_TOKEN);
