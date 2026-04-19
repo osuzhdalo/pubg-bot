@@ -291,9 +291,9 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== АВТОКОМНАТЫ =====
+// ===== АВТОКОМНАТЫ (СТАБИЛЬНЫЕ) =====
 
-const { 
+const {
   ChannelType,
   ActionRowBuilder,
   ButtonBuilder,
@@ -304,17 +304,15 @@ const {
 let roomCounter = 1;
 const activeRooms = new Map();
 
-// СОЗДАНИЕ КОМНАТЫ
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
     if (!newState.channel) return;
 
-    // ТВОЯ КОМНАТА СОЗДАНИЯ
-    if (newState.channel.name === "СОЗДАТЬ ADR RANKED") {
+    // ЛОВИМ КАНАЛ СОЗДАНИЯ
+    if (newState.channel.name.trim() === "СОЗДАТЬ ADR RANKED") {
 
       const guild = newState.guild;
 
-      // создаем голосовую
       const voice = await guild.channels.create({
         name: `ADR RANKED #${roomCounter}`,
         type: ChannelType.GuildVoice,
@@ -323,46 +321,46 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       roomCounter++;
 
-      // сохраняем владельца
       activeRooms.set(voice.id, {
         owner: newState.member.id
       });
 
-      // переносим человека
       await newState.setChannel(voice);
 
-      // отправляем меню В ЧАТ КОМНАТЫ (ВАЖНО)
+      // КНОПКИ
       const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('adr_150').setLabel('150+').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('adr_250').setLabel('250+').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('adr_300').setLabel('300+').setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId('adr_300').setLabel('300+').setStyle(ButtonStyle.Danger)
       );
 
-      // ОТПРАВКА В ТЕКУЩИЙ КАНАЛ ЧАТА (где пользователь сидит)
-      if (newState.guild.systemChannel) {
-        newState.guild.systemChannel.send({
-          content: `🎯 <@${newState.member.id}> выбери порог ADR для комнаты`,
+      // ПИШЕМ В СИСТЕМНЫЙ КАНАЛ (ЭТО ЕДИНСТВЕННЫЙ НОРМ ВАРИАНТ)
+      const channelToSend = guild.systemChannel;
+
+      if (channelToSend) {
+        await channelToSend.send({
+          content: `🎯 <@${newState.member.id}> выбери порог ADR для комнаты **${voice.name}**`,
           components: [row]
         });
       }
     }
 
-    // УДАЛЕНИЕ КОМНАТЫ
+    // УДАЛЕНИЕ
     if (oldState.channel && activeRooms.has(oldState.channel.id)) {
       if (oldState.channel.members.size === 0) {
-        await oldState.channel.delete().catch(()=>{});
+        await oldState.channel.delete().catch(() => {});
         activeRooms.delete(oldState.channel.id);
       }
     }
 
   } catch (e) {
-    console.log("AUTO ROOM ERROR:", e.message);
+    console.log("AUTO ROOM ERROR:", e);
   }
 });
 
-// КНОПКИ ADR
+// КНОПКИ
 client.on('interactionCreate', async (interaction) => {
-
   if (!interaction.isButton()) return;
 
   try {
@@ -376,33 +374,45 @@ client.on('interactionCreate', async (interaction) => {
 
     let roleName = null;
 
+    if (interaction.customId === 'adr_150') roleName = "RANKED ADR 150+";
     if (interaction.customId === 'adr_200') roleName = "RANKED ADR 200+";
     if (interaction.customId === 'adr_250') roleName = "RANKED ADR 250+";
     if (interaction.customId === 'adr_300') roleName = "RANKED ADR 300+";
 
     const role = interaction.guild.roles.cache.find(r => r.name === roleName);
 
-    if (!role) return interaction.reply({ content: "❌ Роль не найдена", ephemeral: true });
+    if (!role) {
+      return interaction.reply({ content: "❌ Роль не найдена", ephemeral: true });
+    }
 
-    // закрываем вход всем
-    await voice.permissionOverwrites.set([
+    // ДОСТУП: только нужная роль и выше
+    const allowRoles = interaction.guild.roles.cache
+      .filter(r => r.name.startsWith("RANKED ADR"))
+      .filter(r => r.position >= role.position);
+
+    const perms = [
       {
         id: interaction.guild.roles.everyone,
         deny: [PermissionsBitField.Flags.Connect]
-      },
-      {
-        id: role.id,
-        allow: [PermissionsBitField.Flags.Connect]
       }
-    ]);
+    ];
+
+    allowRoles.forEach(r => {
+      perms.push({
+        id: r.id,
+        allow: [PermissionsBitField.Flags.Connect]
+      });
+    });
+
+    await voice.permissionOverwrites.set(perms);
 
     await interaction.update({
-      content: `✅ Вход только для ${roleName}`,
+      content: `✅ Вход в ${voice.name}: ${roleName} и выше`,
       components: []
     });
 
   } catch (e) {
-    console.log("BUTTON ERROR:", e.message);
+    console.log("BUTTON ERROR:", e);
   }
 });
 client.login(process.env.DISCORD_TOKEN);
