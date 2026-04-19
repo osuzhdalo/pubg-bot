@@ -7,7 +7,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates // ← ДОБАВЬ ЭТУ СТРОКУ
+    GatewayIntentBits.GuildVoiceStates
   ]
 });
 const PUBG_API = "https://api.pubg.com/shards/steam";
@@ -302,10 +302,10 @@ const {
   PermissionsBitField
 } = require('discord.js');
 
-const CREATE_CHANNEL_ID = "ТВОЙ_ID";
+const CREATE_CHANNEL_ID = "1495412453016600636";
 
 let roomCounter = 1;
-const activeRooms = new Map();
+const rooms = new Map();
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
@@ -315,29 +315,31 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
       const guild = newState.guild;
 
-      // 🎧 создаем голосовой
+      // 🎧 Voice
       const voice = await guild.channels.create({
-        name: `Ranked Adr ${roomCounter}`,
+        name: `ADR RANKED #${roomCounter}`,
         type: ChannelType.GuildVoice,
         parent: newState.channel.parentId
       });
 
-      // 💬 создаем чат (ЭТО И ЕСТЬ ТО ЧТО ТЫ ВИДИШЬ СПРАВА)
+      // 💬 Chat
       const text = await guild.channels.create({
-        name: `ranked-adr-${roomCounter}`,
+        name: `adr-ranked-${roomCounter}`,
         type: ChannelType.GuildText,
         parent: newState.channel.parentId
       });
 
       roomCounter++;
 
-      activeRooms.set(voice.id, {
+      // сохраняем
+      rooms.set(voice.id, {
         owner: newState.member.id,
         textId: text.id
       });
 
       await newState.setChannel(voice);
 
+      // кнопки
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('adr_200').setLabel('200+').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('adr_250').setLabel('250+').setStyle(ButtonStyle.Success),
@@ -345,14 +347,14 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       );
 
       await text.send({
-        content: `🎯 <@${newState.member.id}> выбери ADR`,
+        content: `🎯 <@${newState.member.id}> выбери порог ADR`,
         components: [row]
       });
     }
 
     // 🧹 удаление
-    if (oldState.channelId && activeRooms.has(oldState.channelId)) {
-      const data = activeRooms.get(oldState.channelId);
+    if (oldState.channelId && rooms.has(oldState.channelId)) {
+      const data = rooms.get(oldState.channelId);
 
       const voice = oldState.guild.channels.cache.get(oldState.channelId);
       const text = oldState.guild.channels.cache.get(data.textId);
@@ -360,38 +362,55 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       if (voice && voice.members.size === 0) {
         await voice.delete().catch(() => {});
         if (text) await text.delete().catch(() => {});
-        activeRooms.delete(oldState.channelId);
+        rooms.delete(oldState.channelId);
       }
     }
 
-  } catch (err) {
-    console.log("ROOM ERROR:", err);
+  } catch (e) {
+    console.log("ROOM ERROR:", e);
   }
 });
 
+
+// 🔘 КНОПКИ
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
     await interaction.deferUpdate();
 
-    const roomEntry = [...activeRooms.entries()]
+    const roomEntry = [...rooms.entries()]
       .find(([id, data]) => data.owner === interaction.user.id);
 
     if (!roomEntry) return;
 
-    const [roomId] = roomEntry;
+    const [roomId, data] = roomEntry;
+
     const voice = interaction.guild.channels.cache.get(roomId);
+    const text = interaction.guild.channels.cache.get(data.textId);
 
     let minRole = null;
+    let value = null;
 
-    if (interaction.customId === 'adr_200') minRole = "RANKED ADR 200+";
-    if (interaction.customId === 'adr_250') minRole = "RANKED ADR 250+";
-    if (interaction.customId === 'adr_300') minRole = "RANKED ADR 300+";
+    if (interaction.customId === 'adr_200') {
+      minRole = "RANKED ADR 200+";
+      value = 200;
+    }
+
+    if (interaction.customId === 'adr_250') {
+      minRole = "RANKED ADR 250+";
+      value = 250;
+    }
+
+    if (interaction.customId === 'adr_300') {
+      minRole = "RANKED ADR 300+";
+      value = 300;
+    }
 
     const baseRole = interaction.guild.roles.cache.find(r => r.name === minRole);
     if (!baseRole) return;
 
+    // роли выше
     const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
     );
@@ -410,11 +429,17 @@ client.on('interactionCreate', async (interaction) => {
       });
     });
 
+    // применяем
     await voice.permissionOverwrites.set(perms);
-    await voice.setName(`Ranked Adr ${interaction.customId.split('_')[1]}`);
 
-  } catch (err) {
-    console.log("BUTTON ERROR:", err);
+    await voice.setName(`ADR RANKED ${value}+`);
+    await text.setName(`adr-ranked-${value}`);
+
+    // обновляем сообщение
+    await text.send(`✅ Вход открыт от **${minRole}**`);
+
+  } catch (e) {
+    console.log("BUTTON ERROR:", e);
   }
 });
 client.login(process.env.DISCORD_TOKEN);
