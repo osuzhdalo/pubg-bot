@@ -27,6 +27,7 @@ function getFppAdrRole(adr) {
   if (adr >= 300) return "FPP ADR 300+";
   if (adr >= 250) return "FPP ADR 250+";
   if (adr >= 200) return "FPP ADR 200+";
+  if (adr >= 200) return "FPP ADR 150+";
   if (adr >= 100) return "FPP ADR 100+";
   return null;
 }
@@ -36,6 +37,7 @@ function getRankedAdrRole(adr) {
   if (adr >= 300) return "RANKED ADR 300+";
   if (adr >= 250) return "RANKED ADR 250+";
   if (adr >= 200) return "RANKED ADR 200+";
+  if (adr >= 200) return "RANKED ADR 150+";
   if (adr >= 100) return "RANKED ADR 100+";
   return null;
 }
