@@ -310,9 +310,10 @@ const activeRooms = new Map();
 // ===== СОЗДАНИЕ =====
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
-    if (!newState.channelId) return;
 
+    // ===== СОЗДАНИЕ КОМНАТЫ =====
     if (newState.channelId === CREATE_CHANNEL_ID) {
+
       const guild = newState.guild;
 
       const room = await guild.channels.create({
@@ -321,11 +322,12 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         parent: newState.channel.parentId
       });
 
-      roomCounter++;
-
       activeRooms.set(room.id, {
-        owner: newState.member.id
+        owner: newState.member.id,
+        number: roomCounter
       });
+
+      roomCounter++;
 
       await newState.setChannel(room);
 
@@ -341,17 +343,31 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       });
     }
 
-    // ===== УДАЛЕНИЕ =====
+    // ===== УДАЛЕНИЕ КОМНАТЫ =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
+
       const room = oldState.guild.channels.cache.get(oldState.channelId);
 
-      // 🔥 ФИКС: небольшая задержка (Discord иногда лагает)
+      if (!room) return;
+
+      // 🔥 ЗАДЕРЖКА + ПОВТОРНАЯ ПРОВЕРКА
       setTimeout(async () => {
-        if (room && room.members.size === 0) {
-          await room.delete().catch(() => {});
-          activeRooms.delete(oldState.channelId);
+        try {
+          const freshRoom = oldState.guild.channels.cache.get(oldState.channelId);
+
+          if (!freshRoom) return;
+
+          if (freshRoom.members.size === 0) {
+            await freshRoom.delete().catch(() => {});
+            activeRooms.delete(oldState.channelId);
+            console.log("Комната удалена:", oldState.channelId);
+          }
+
+        } catch (e) {
+          console.log("DELETE ERROR:", e);
         }
-      }, 1000);
+      }, 1500); // можно 2000 если лагает
+
     }
 
   } catch (err) {
@@ -367,11 +383,9 @@ client.on('interactionCreate', async (interaction) => {
     const roomEntry = [...activeRooms.entries()]
       .find(([id, data]) => data.owner === interaction.user.id);
 
-    if (!roomEntry) {
-      return interaction.deferUpdate(); // фикс ошибки
-    }
+    if (!roomEntry) return interaction.deferUpdate();
 
-    const [roomId] = roomEntry;
+    const [roomId, data] = roomEntry;
     const room = interaction.guild.channels.cache.get(roomId);
 
     let minRole = null;
@@ -414,9 +428,10 @@ client.on('interactionCreate', async (interaction) => {
     });
 
     await room.permissionOverwrites.set(perms);
-    await room.setName(`ADR RANKED ${adrValue}`);
 
-    // ✅ ФИКС ОШИБКИ КНОПКИ
+    // 🔥 НОВОЕ ИМЯ С НОМЕРОМ
+    await room.setName(`ADR RANKED ${adrValue} #${data.number}`);
+
     await interaction.update({
       content: `✅ Вход: ${minRole} и выше`,
       components: []
@@ -425,7 +440,6 @@ client.on('interactionCreate', async (interaction) => {
   } catch (err) {
     console.log("BUTTON ERROR:", err);
 
-    // 🔥 ГАРАНТИЯ что ошибки не будет
     if (!interaction.replied && !interaction.deferred) {
       await interaction.deferUpdate().catch(() => {});
     }
