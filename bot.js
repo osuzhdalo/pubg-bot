@@ -294,7 +294,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== АВТОКОМНАТЫ (РАБОЧИЕ 100%) =====
+// ===== АВТОКОМНАТЫ FINAL =====
 
 const {
   ChannelType,
@@ -304,56 +304,81 @@ const {
   PermissionsBitField
 } = require('discord.js');
 
-const CREATE_CHANNEL_ID = "1495412453016600636"; // твой канал
+const CREATE_CHANNEL_ID = "1495412453016600636"; // ← ID твоего канала СОЗДАТЬ
 
 let roomCounter = 1;
 const activeRooms = new Map();
 
+// СОЗДАНИЕ КОМНАТЫ
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
     if (!newState.channelId) return;
 
-    // ЗАШЕЛ В СОЗДАТЬ
     if (newState.channelId === CREATE_CHANNEL_ID) {
 
       const guild = newState.guild;
 
-      const room = await guild.channels.create({
+      // 🎤 создаем голосовую
+      const voice = await guild.channels.create({
         name: `ADR RANKED #${roomCounter}`,
         type: ChannelType.GuildVoice,
         parent: newState.channel.parentId
       });
 
-      roomCounter++;
-
-      activeRooms.set(room.id, {
-        owner: newState.member.id
+      // 💬 создаем чат
+      const text = await guild.channels.create({
+        name: `adr-ranked-${roomCounter}`,
+        type: ChannelType.GuildText,
+        parent: newState.channel.parentId
       });
 
-      await newState.setChannel(room);
+      // даём доступ только создателю
+      await text.permissionOverwrites.set([
+        {
+          id: guild.roles.everyone,
+          deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: newState.member.id,
+          allow: [PermissionsBitField.Flags.ViewChannel]
+        }
+      ]);
 
-      // 👉 ВАЖНО: отправляем через ЛИЧКУ (единственный норм способ)
+      roomCounter++;
+
+      activeRooms.set(voice.id, {
+        owner: newState.member.id,
+        textId: text.id
+      });
+
+      // переносим в комнату
+      await newState.setChannel(voice);
+
+      // кнопки
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`adr_150_${room.id}`).setLabel('150+').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`adr_200_${room.id}`).setLabel('200+').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`adr_250_${room.id}`).setLabel('250+').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(`adr_300_${room.id}`).setLabel('300+').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(`adr_150_${voice.id}`).setLabel('150+').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`adr_200_${voice.id}`).setLabel('200+').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`adr_250_${voice.id}`).setLabel('250+').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`adr_300_${voice.id}`).setLabel('300+').setStyle(ButtonStyle.Danger)
       );
 
-      await newState.member.send({
-        content: `🎯 Выбери ADR для комнаты **${room.name}**`,
+      // пишем в чат комнаты
+      await text.send({
+        content: `🎯 <@${newState.member.id}> выбери порог ADR`,
         components: [row]
-      }).catch(() => {
-        console.log("ЛС закрыты у пользователя");
       });
     }
 
-    // УДАЛЕНИЕ
+    // 🧹 УДАЛЕНИЕ
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
-      const room = oldState.guild.channels.cache.get(oldState.channelId);
 
-      if (room && room.members.size === 0) {
-        await room.delete().catch(()=>{});
+      const data = activeRooms.get(oldState.channelId);
+      const voice = oldState.guild.channels.cache.get(oldState.channelId);
+      const text = oldState.guild.channels.cache.get(data.textId);
+
+      if (voice && voice.members.size === 0) {
+        await voice.delete().catch(()=>{});
+        if (text) await text.delete().catch(()=>{});
         activeRooms.delete(oldState.channelId);
       }
     }
@@ -368,18 +393,22 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
-    const [_, value, roomId] = interaction.customId.split('_');
+    const [_, value, voiceId] = interaction.customId.split('_');
 
-    const room = interaction.guild.channels.cache.get(roomId);
-    if (!room) return;
+    const data = activeRooms.get(voiceId);
+    if (!data) return;
 
-    let roleName = `RANKED ADR ${value}+`;
+    const voice = interaction.guild.channels.cache.get(voiceId);
+    const text = interaction.guild.channels.cache.get(data.textId);
 
+    const roleName = `RANKED ADR ${value}+`;
     const baseRole = interaction.guild.roles.cache.find(r => r.name === roleName);
+
     if (!baseRole) {
       return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
     }
 
+    // роли с таким ADR и выше
     const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
     );
@@ -398,12 +427,38 @@ client.on('interactionCreate', async (interaction) => {
       });
     });
 
-    await room.permissionOverwrites.set(perms);
-    await room.setName(`ADR RANKED ${value}+`);
+    await voice.permissionOverwrites.set(perms);
 
-    await interaction.reply({
-      content: `✅ Комната настроена: ${roleName} и выше`,
-      ephemeral: true
+    // доступ в чат тем же ролям
+    const textPerms = [
+      {
+        id: interaction.guild.roles.everyone,
+        deny: [PermissionsBitField.Flags.ViewChannel]
+      }
+    ];
+
+    allowedRoles.forEach(r => {
+      textPerms.push({
+        id: r.id,
+        allow: [PermissionsBitField.Flags.ViewChannel]
+      });
+    });
+
+    textPerms.push({
+      id: data.owner,
+      allow: [PermissionsBitField.Flags.ViewChannel]
+    });
+
+    await text.permissionOverwrites.set(textPerms);
+
+    // меняем название
+    await voice.setName(`ADR RANKED ${value}+`);
+
+    await text.send(`✅ Вход: ${roleName} и выше`);
+
+    await interaction.update({
+      content: `✅ Установлено: ${roleName}`,
+      components: []
     });
 
   } catch (err) {
