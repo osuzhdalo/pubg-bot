@@ -304,30 +304,33 @@ const {
 
 const CREATE_CHANNEL_ID = "1495412453016600636";
 
-let roomCounter = 1;
+// 🔥 СЧЁТЧИКИ ПО ADR
+const adrCounters = {
+  "200": 0,
+  "250": 0,
+  "300": 0
+};
+
 const activeRooms = new Map();
 
 // ===== СОЗДАНИЕ =====
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
 
-    // ===== СОЗДАНИЕ КОМНАТЫ =====
     if (newState.channelId === CREATE_CHANNEL_ID) {
 
       const guild = newState.guild;
 
       const room = await guild.channels.create({
-        name: `ADR RANKED #${roomCounter}`,
+        name: `ADR RANKED (ожидание)`,
         type: ChannelType.GuildVoice,
         parent: newState.channel.parentId
       });
 
       activeRooms.set(room.id, {
         owner: newState.member.id,
-        number: roomCounter
+        adr: null
       });
-
-      roomCounter++;
 
       await newState.setChannel(room);
 
@@ -343,31 +346,18 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       });
     }
 
-    // ===== УДАЛЕНИЕ КОМНАТЫ =====
+    // ===== УДАЛЕНИЕ =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
-      const room = oldState.guild.channels.cache.get(oldState.channelId);
-
-      if (!room) return;
-
-      // 🔥 ЗАДЕРЖКА + ПОВТОРНАЯ ПРОВЕРКА
       setTimeout(async () => {
-        try {
-          const freshRoom = oldState.guild.channels.cache.get(oldState.channelId);
+        const room = oldState.guild.channels.cache.get(oldState.channelId);
+        if (!room) return;
 
-          if (!freshRoom) return;
-
-          if (freshRoom.members.size === 0) {
-            await freshRoom.delete().catch(() => {});
-            activeRooms.delete(oldState.channelId);
-            console.log("Комната удалена:", oldState.channelId);
-          }
-
-        } catch (e) {
-          console.log("DELETE ERROR:", e);
+        if (room.members.size === 0) {
+          activeRooms.delete(oldState.channelId);
+          await room.delete().catch(() => {});
         }
-      }, 1500); // можно 2000 если лагает
-
+      }, 1500);
     }
 
   } catch (err) {
@@ -380,34 +370,39 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   try {
-    const roomEntry = [...activeRooms.entries()]
+    const entry = [...activeRooms.entries()]
       .find(([id, data]) => data.owner === interaction.user.id);
 
-    if (!roomEntry) return interaction.deferUpdate();
+    if (!entry) return interaction.deferUpdate();
 
-    const [roomId, data] = roomEntry;
+    const [roomId, data] = entry;
     const room = interaction.guild.channels.cache.get(roomId);
 
     let minRole = null;
-    let adrValue = null;
+    let adrKey = null;
 
     if (interaction.customId === 'adr_200') {
       minRole = "RANKED ADR 200+";
-      adrValue = "200+";
+      adrKey = "200";
     }
     if (interaction.customId === 'adr_250') {
       minRole = "RANKED ADR 250+";
-      adrValue = "250+";
+      adrKey = "250";
     }
     if (interaction.customId === 'adr_300') {
       minRole = "RANKED ADR 300+";
-      adrValue = "300+";
+      adrKey = "300";
     }
 
     const baseRole = interaction.guild.roles.cache.find(r => r.name === minRole);
     if (!baseRole) {
       return interaction.reply({ content: "❌ Нет роли", ephemeral: true });
     }
+
+    // 🔥 увеличиваем счётчик только после выбора
+    adrCounters[adrKey]++;
+
+    const roomNumber = adrCounters[adrKey];
 
     const allowedRoles = interaction.guild.roles.cache.filter(r =>
       r.name.startsWith("RANKED ADR") && r.position >= baseRole.position
@@ -429,8 +424,10 @@ client.on('interactionCreate', async (interaction) => {
 
     await room.permissionOverwrites.set(perms);
 
-    // 🔥 НОВОЕ ИМЯ С НОМЕРОМ
-    await room.setName(`ADR RANKED ${adrValue} #${data.number}`);
+    // 🔥 правильное имя
+    await room.setName(`ADR RANKED ${adrKey}+ #${roomNumber}`);
+
+    data.adr = adrKey;
 
     await interaction.update({
       content: `✅ Вход: ${minRole} и выше`,
