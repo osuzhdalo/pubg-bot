@@ -356,7 +356,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         // перенос
         await member.voice.setChannel(room);
 
-        // 🔒 ограничения ПОСЛЕ переноса
+        // 🔒 ограничения после
         setTimeout(async () => {
           try {
             await room.permissionOverwrites.set([
@@ -375,44 +375,42 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                   allow: ["Connect"]
                 }))
             ]);
-          } catch (e) {
-            console.log("PERMISSION ERROR:", e);
-          }
+          } catch {}
         }, 500);
       }
-    }
-
-    // ================= УДАЛЕНИЕ (ФИКС) =================
-    if (oldState.channelId && activeRooms.has(oldState.channelId)) {
-
-      const channelId = oldState.channelId;
-
-      const checkDelete = async (tries = 0) => {
-
-        // 🔥 проверяем через voiceStates (а не members)
-        const stillInChannel = guild.voiceStates.cache.some(
-          vs => vs.channelId === channelId
-        );
-
-        if (!stillInChannel) {
-          const ch = guild.channels.cache.get(channelId);
-          if (ch) {
-            activeRooms.delete(channelId);
-            await ch.delete().catch(() => {});
-          }
-          return;
-        }
-
-        if (tries < 5) {
-          setTimeout(() => checkDelete(tries + 1), 2000);
-        }
-      };
-
-      setTimeout(() => checkDelete(), 3000);
     }
 
   } catch (err) {
     console.log("VOICE ERROR:", err);
   }
 });
+
+
+// ================= 🔥 АВТО УДАЛЕНИЕ (ГЛАВНЫЙ ФИКС) =================
+setInterval(async () => {
+  try {
+
+    for (const channelId of activeRooms) {
+
+      const channel = client.channels.cache.get(channelId);
+      if (!channel) {
+        activeRooms.delete(channelId);
+        continue;
+      }
+
+      // проверяем через voiceStates
+      const hasUsers = channel.guild.voiceStates.cache.some(
+        vs => vs.channelId === channelId
+      );
+
+      if (!hasUsers) {
+        activeRooms.delete(channelId);
+        await channel.delete().catch(() => {});
+      }
+    }
+
+  } catch (e) {
+    console.log("AUTO DELETE ERROR:", e);
+  }
+}, 5000); // каждые 5 сек
 client.login(process.env.DISCORD_TOKEN);
