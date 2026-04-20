@@ -344,7 +344,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         counters[adr]++;
         const number = counters[adr];
 
-        // 1. создаём канал
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
           type: ChannelType.GuildVoice,
@@ -354,10 +353,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
         activeRooms.add(room.id);
 
-        // 2. переносим
+        // перенос
         await member.voice.setChannel(room);
 
-        // 3. ставим ограничения ПОСЛЕ переноса
+        // ограничения ПОСЛЕ
         setTimeout(async () => {
           try {
             await room.permissionOverwrites.set([
@@ -384,19 +383,27 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     // ================= УДАЛЕНИЕ =================
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
-      const checkDelete = async () => {
-        const ch = oldState.guild.channels.cache.get(oldState.channelId);
+      const channelId = oldState.channelId;
+
+      const checkDelete = async (tries = 0) => {
+        const ch = guild.channels.cache.get(channelId);
         if (!ch) return;
 
+        // 🔥 ключевая проверка
         if (ch.members.size === 0) {
           activeRooms.delete(ch.id);
           await ch.delete().catch(() => {});
-        } else {
-          setTimeout(checkDelete, 2000);
+          return;
+        }
+
+        // пробуем максимум 5 раз
+        if (tries < 5) {
+          setTimeout(() => checkDelete(tries + 1), 2000);
         }
       };
 
-      setTimeout(checkDelete, 1500);
+      // первая проверка позже
+      setTimeout(() => checkDelete(), 3000);
     }
 
   } catch (err) {
