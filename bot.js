@@ -307,6 +307,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
+// ТВОИ КАНАЛЫ
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
   "200": "1495532213674971147",
@@ -314,6 +315,10 @@ const CREATE_CHANNELS = {
   "300": "1495532283354943508"
 };
 
+const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
+const activeRooms = new Set();
+
+// 👇 ДОБАВИЛИ ТОЛЬКО ЭТО (ID ролей)
 const ADR_ROLES = {
   "150": "1495382626146717726",
   "200": "1495382551731110008",
@@ -322,35 +327,24 @@ const ADR_ROLES = {
   "350": "1495380397524123820"
 };
 
-const activeRooms = new Set();
-const creating = new Set();
-
-client.on("voiceStateUpdate", async (oldState, newState) => {
+client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
-    const member = newState.member;
-    if (!member) return;
 
-    const guild = newState.guild;
-
-    // ================= СОЗДАНИЕ =================
+    // ===== СОЗДАНИЕ =====
     for (const adr in CREATE_CHANNELS) {
 
-      const createId = CREATE_CHANNELS[adr];
+      if (
+        newState.channelId === CREATE_CHANNELS[adr] &&
+        oldState.channelId !== CREATE_CHANNELS[adr]
+      ) {
 
-      if (newState.channelId === createId) {
+        const guild = newState.guild;
+        const member = newState.member;
 
-        if (creating.has(member.id)) return;
-        creating.add(member.id);
+        counters[adr]++;
+        const number = counters[adr];
 
-        // номер
-        const number =
-          guild.channels.cache
-            .filter(c =>
-              c.parentId === newState.channel.parentId &&
-              c.name.startsWith(`🎯 ADR RANKED ${adr}+`)
-            )
-            .size + 1;
-
+        // 👇 ВОТ ЕДИНСТВЕННОЕ ЧТО ДОБАВИЛИ
         const permissionOverwrites = [
           {
             id: guild.roles.everyone.id,
@@ -366,44 +360,32 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
-          type: 2,
+          type: ChannelType.GuildVoice,
           parent: newState.channel.parentId,
           userLimit: 4,
-          permissionOverwrites
+          permissionOverwrites // 👈 ТОЛЬКО ЭТО ДОБАВИЛИ
         });
 
         activeRooms.add(room.id);
 
-        // 🔥 ЖЁСТКИЙ ПЕРЕНОС (работает всегда)
-        setTimeout(async () => {
-          try {
-            await member.voice.setChannel(room);
-          } catch (e) {
-            console.log("MOVE ERROR:", e);
-          }
-          creating.delete(member.id);
-        }, 1500);
+        // перенос (НЕ ТРОГАЛИ)
+        await member.voice.setChannel(room);
       }
     }
 
-    // ================= УДАЛЕНИЕ =================
+    // ===== УДАЛЕНИЕ (НЕ ТРОГАЛИ) =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       setTimeout(async () => {
-        try {
-          const ch = guild.channels.cache.get(oldState.channelId);
-          if (!ch) return;
+        const ch = oldState.guild.channels.cache.get(oldState.channelId);
+        if (!ch) return;
 
-          // ПОВТОРНАЯ ПРОВЕРКА
-          if (ch.members.size === 0) {
-            activeRooms.delete(ch.id);
-            await ch.delete();
-          }
-
-        } catch (e) {
-          console.log("DELETE ERROR:", e);
+        if (ch.members.size === 0) {
+          activeRooms.delete(ch.id);
+          await ch.delete().catch(() => {});
         }
-      }, 5000);
+
+      }, 1500);
     }
 
   } catch (err) {
