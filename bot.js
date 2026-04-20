@@ -35,36 +35,22 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
-// ===== ADR =====
-function getFppAdrRole(adr) {
-  if (adr >= 350) return "FPP ADR 350+";
-  if (adr >= 300) return "FPP ADR 300+";
-  if (adr >= 250) return "FPP ADR 250+";
-  if (adr >= 200) return "FPP ADR 200+";
-  if (adr >= 200) return "FPP ADR 150+"
-  if (adr >= 100) return "FPP ADR 100+";
-  return null;
-}
+function getAdrRole(adr, type = "RANKED") {
+  let prefix = "";
 
-function getRankedAdrRole(adr) {
-  if (adr >= 350) return "RANKED ADR 350+";
-  if (adr >= 300) return "RANKED ADR 300+";
-  if (adr >= 250) return "RANKED ADR 250+";
-  if (adr >= 200) return "RANKED ADR 200+";
-  if (adr >= 100) return "RANKED ADR 150+";
-  if (adr >= 100) return "RANKED ADR 100+";
-  return null;
-}
+  if (type === "FPP") prefix = "FPP ADR";
+  if (type === "RANKED") prefix = "RANKED ADR";
+  if (type === "DUO") prefix = "RANKED DUO ADR";
 
-function getRankedDuoAdrRole(adr) {
-  if (adr >= 350) return "RANKED DUO ADR 350+";
-  if (adr >= 300) return "RANKED DUO ADR 300+";
-  if (adr >= 250) return "RANKED DUO ADR 250+";
-  if (adr >= 200) return "RANKED DUO ADR 200+";
-  if (adr >= 100) return "RANKED DUO ADR 100+";
-  return null;
-}
+  if (adr >= 350) return `${prefix} 350+`;
+  if (adr >= 300) return `${prefix} 300+`;
+  if (adr >= 250) return `${prefix} 250+`;
+  if (adr >= 200) return `${prefix} 200+`;
+  if (adr >= 150) return `${prefix} 150+`;
+  if (adr >= 100) return `${prefix} 100+`;
 
+  return `${prefix} 100+`; // если меньше 100
+}
 // ===== KD =====
 function getFppKdRole(kd) {
   if (kd >= 2) return "FPP KD 2+";
