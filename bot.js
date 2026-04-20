@@ -307,7 +307,6 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ТВОИ КАНАЛЫ
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
   "200": "1495532213674971147",
@@ -318,7 +317,6 @@ const CREATE_CHANNELS = {
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const activeRooms = new Set();
 
-// РОЛИ
 const ADR_ROLES = {
   "150": "1495382626146717726",
   "200": "1495382551731110008",
@@ -330,7 +328,6 @@ const ADR_ROLES = {
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
 
-    // ===== СОЗДАНИЕ =====
     for (const adr in CREATE_CHANNELS) {
 
       if (
@@ -344,20 +341,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         counters[adr]++;
         const number = counters[adr];
 
-        // 🔥 ВОТ ЕДИНСТВЕННОЕ ДОБАВЛЕНИЕ
+        // 🔥 ВАЖНО: НЕ ДЕЛАЕМ deny everyone
         const permissionOverwrites = [
-          {
-            id: guild.roles.everyone.id,
-            deny: ["Connect"]
-          },
-
-          // ✅ ТЕБЯ ПУСКАЕТ ВСЕГДА
-          {
-            id: member.id,
-            allow: ["Connect"]
-          },
-
-          // ✅ РОЛИ ПО ADR
+          // разрешаем только роли
           ...Object.keys(ADR_ROLES)
             .filter(r => parseInt(r) >= parseInt(adr))
             .map(r => ({
@@ -376,12 +362,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
         activeRooms.add(room.id);
 
-        // ❗ НЕ ТРОГАЕМ (как у тебя было)
-        await member.voice.setChannel(room);
+        // 🔥 ВАЖНО: даём время Discord
+        setTimeout(async () => {
+          await member.voice.setChannel(room).catch(() => {});
+        }, 300);
       }
     }
 
-    // ===== УДАЛЕНИЕ (НЕ ТРОГАЕМ) =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       setTimeout(async () => {
