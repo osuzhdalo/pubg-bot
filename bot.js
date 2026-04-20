@@ -317,6 +317,7 @@ const CREATE_CHANNELS = {
 
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const activeRooms = new Set();
+const roomOwners = new Map(); // 🔥 кто создал комнату
 
 // РОЛИ
 const ADR_ROLES = {
@@ -352,16 +353,20 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         });
 
         activeRooms.add(room.id);
+        roomOwners.set(room.id, member.id); // 🔥 запоминаем создателя
 
-        // перенос (как у тебя было)
         await member.voice.setChannel(room);
       }
     }
 
-    // ================= ФИЛЬТР ПО ADR =================
+    // ================= ФИЛЬТР =================
     if (newState.channelId && activeRooms.has(newState.channelId)) {
 
       const channel = newState.channel;
+
+      // 🔥 НЕ КИКАЕМ СОЗДАТЕЛЯ
+      if (roomOwners.get(channel.id) === member.id) return;
+
       const match = channel.name.match(/ADR RANKED (\d+)\+/);
 
       if (match) {
@@ -374,7 +379,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           );
         });
 
-        // ❌ если нет роли — кик
         if (!hasAccess) {
           setTimeout(() => {
             member.voice.disconnect().catch(() => {});
@@ -392,6 +396,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
         if (ch.members.size === 0) {
           activeRooms.delete(ch.id);
+          roomOwners.delete(ch.id); // чистим
           await ch.delete().catch(() => {});
         }
 
