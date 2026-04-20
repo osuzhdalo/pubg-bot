@@ -346,10 +346,16 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
         // 👇 ВОТ ЕДИНСТВЕННОЕ ЧТО ДОБАВИЛИ
         const permissionOverwrites = [
-          {
-            id: guild.roles.everyone.id,
-            deny: ["Connect"]
-          },
+  {
+    id: guild.roles.everyone.id,
+    deny: ["Connect"]
+  },
+
+  // 👇 ВАЖНО! разрешаем создателю
+  {
+    id: member.id,
+    allow: ["Connect"]
+  },
           ...Object.keys(ADR_ROLES)
             .filter(r => parseInt(r) >= parseInt(adr))
             .map(r => ({
