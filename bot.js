@@ -307,7 +307,9 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ТВОИ КАНАЛЫ
+// ===== НАСТРОЙКИ =====
+
+// Каналы создания
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
   "200": "1495532213674971147",
@@ -315,8 +317,9 @@ const CREATE_CHANNELS = {
   "300": "1495532283354943508"
 };
 
-const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const activeRooms = new Set();
+
+// ===== ОСНОВНАЯ ЛОГИКА =====
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
@@ -332,19 +335,51 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         const guild = newState.guild;
         const member = newState.member;
 
-        counters[adr]++;
-        const number = counters[adr];
+        // === НУМЕРАЦИЯ (с авто-сбросом) ===
+        const number =
+          [...activeRooms]
+            .map(id => guild.channels.cache.get(id))
+            .filter(ch => ch && ch.name.includes(`ADR RANKED ${adr}+`))
+            .length + 1;
 
+        // === ПОЛУЧАЕМ РОЛИ ПО НАЗВАНИЮ ===
+        const role150 = guild.roles.cache.find(r => r.name === "RANKED ADR 150+");
+        const role200 = guild.roles.cache.find(r => r.name === "RANKED ADR 200+");
+        const role250 = guild.roles.cache.find(r => r.name === "RANKED ADR 250+");
+        const role300 = guild.roles.cache.find(r => r.name === "RANKED ADR 300+");
+
+        // === ПРАВА ДОСТУПА ===
+        const permissionOverwrites = [
+          {
+            id: guild.roles.everyone.id,
+            deny: ["Connect"]
+          }
+        ];
+
+        if (parseInt(adr) <= 150 && role150)
+          permissionOverwrites.push({ id: role150.id, allow: ["Connect"] });
+
+        if (parseInt(adr) <= 200 && role200)
+          permissionOverwrites.push({ id: role200.id, allow: ["Connect"] });
+
+        if (parseInt(adr) <= 250 && role250)
+          permissionOverwrites.push({ id: role250.id, allow: ["Connect"] });
+
+        if (parseInt(adr) <= 300 && role300)
+          permissionOverwrites.push({ id: role300.id, allow: ["Connect"] });
+
+        // === СОЗДАНИЕ КОМНАТЫ ===
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
-          type: ChannelType.GuildVoice,
+          type: 2, // голосовой канал
           parent: newState.channel.parentId,
-          userLimit: 4
+          userLimit: 4,
+          permissionOverwrites
         });
 
         activeRooms.add(room.id);
 
-        // перенос
+        // перенос пользователя
         await member.voice.setChannel(room);
       }
     }
