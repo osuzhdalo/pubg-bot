@@ -317,7 +317,6 @@ const CREATE_CHANNELS = {
 
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const activeRooms = new Set();
-const roomOwners = new Map(); // 🔥 кто создал комнату
 
 // РОЛИ
 const ADR_ROLES = {
@@ -345,6 +344,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         counters[adr]++;
         const number = counters[adr];
 
+        // 1️⃣ СОЗДАЁМ БЕЗ ОГРАНИЧЕНИЙ
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
           type: ChannelType.GuildVoice,
@@ -353,37 +353,35 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         });
 
         activeRooms.add(room.id);
-        roomOwners.set(room.id, member.id); // 🔥 запоминаем создателя
 
+        // 2️⃣ ПЕРЕНОСИМ
         await member.voice.setChannel(room);
-      }
-    }
 
-    // ================= ФИЛЬТР =================
-    if (newState.channelId && activeRooms.has(newState.channelId)) {
+        // 3️⃣ СТАВИМ ОГРАНИЧЕНИЯ (ПОСЛЕ!)
+        setTimeout(async () => {
+          try {
+            await room.permissionOverwrites.set([
+              {
+                id: guild.roles.everyone.id,
+                deny: ["Connect"]
+              },
 
-      const channel = newState.channel;
+              // создатель
+              {
+                id: member.id,
+                allow: ["Connect"]
+              },
 
-      // 🔥 НЕ КИКАЕМ СОЗДАТЕЛЯ
-      if (roomOwners.get(channel.id) === member.id) return;
-
-      const match = channel.name.match(/ADR RANKED (\d+)\+/);
-
-      if (match) {
-        const requiredAdr = parseInt(match[1]);
-
-        const hasAccess = Object.keys(ADR_ROLES).some(adr => {
-          return (
-            parseInt(adr) >= requiredAdr &&
-            member.roles.cache.has(ADR_ROLES[adr])
-          );
-        });
-
-        if (!hasAccess) {
-          setTimeout(() => {
-            member.voice.disconnect().catch(() => {});
-          }, 500);
-        }
+              // роли ADR
+              ...Object.keys(ADR_ROLES)
+                .filter(r => parseInt(r) >= parseInt(adr))
+                .map(r => ({
+                  id: ADR_ROLES[r],
+                  allow: ["Connect"]
+                }))
+            ]);
+          } catch {}
+        }, 500);
       }
     }
 
@@ -396,7 +394,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
         if (ch.members.size === 0) {
           activeRooms.delete(ch.id);
-          roomOwners.delete(ch.id); // чистим
           await ch.delete().catch(() => {});
         }
 
