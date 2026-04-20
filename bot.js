@@ -335,17 +335,14 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     // ================= СОЗДАНИЕ =================
     for (const adr in CREATE_CHANNELS) {
 
-      const createChannelId = CREATE_CHANNELS[adr];
+      const createId = CREATE_CHANNELS[adr];
 
-      if (
-        newState.channelId === createChannelId &&
-        oldState.channelId !== createChannelId
-      ) {
+      if (newState.channelId === createId) {
 
         if (creating.has(member.id)) return;
         creating.add(member.id);
 
-        // ===== НУМЕРАЦИЯ =====
+        // номер
         const number =
           guild.channels.cache
             .filter(c =>
@@ -354,7 +351,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
             )
             .size + 1;
 
-        // ===== ПРАВА =====
         const permissionOverwrites = [
           {
             id: guild.roles.everyone.id,
@@ -368,7 +364,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
             }))
         ];
 
-        // ===== СОЗДАНИЕ =====
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
           type: 2,
@@ -379,18 +374,15 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
         activeRooms.add(room.id);
 
-        // ===== ПЕРЕНОС (СТАБИЛЬНЫЙ) =====
+        // 🔥 ЖЁСТКИЙ ПЕРЕНОС (работает всегда)
         setTimeout(async () => {
           try {
-            const fresh = await guild.members.fetch(member.id);
-
-            if (fresh.voice.channelId === createChannelId) {
-              await fresh.voice.setChannel(room);
-            }
-          } catch {}
-
+            await member.voice.setChannel(room);
+          } catch (e) {
+            console.log("MOVE ERROR:", e);
+          }
           creating.delete(member.id);
-        }, 1200);
+        }, 1500);
       }
     }
 
@@ -402,11 +394,15 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
           const ch = guild.channels.cache.get(oldState.channelId);
           if (!ch) return;
 
+          // ПОВТОРНАЯ ПРОВЕРКА
           if (ch.members.size === 0) {
             activeRooms.delete(ch.id);
             await ch.delete();
           }
-        } catch {}
+
+        } catch (e) {
+          console.log("DELETE ERROR:", e);
+        }
       }, 5000);
     }
 
