@@ -307,9 +307,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== НАСТРОЙКИ =====
-
-// Каналы создания
+// ===== ТВОИ КАНАЛЫ =====
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
   "200": "1495532213674971147",
@@ -317,9 +315,8 @@ const CREATE_CHANNELS = {
   "300": "1495532283354943508"
 };
 
+const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const activeRooms = new Set();
-
-// ===== ОСНОВНАЯ ЛОГИКА =====
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
@@ -335,20 +332,16 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         const guild = newState.guild;
         const member = newState.member;
 
-        // === НУМЕРАЦИЯ (с авто-сбросом) ===
-        const number =
-          [...activeRooms]
-            .map(id => guild.channels.cache.get(id))
-            .filter(ch => ch && ch.name.includes(`ADR RANKED ${adr}+`))
-            .length + 1;
+        counters[adr]++;
+        const number = counters[adr];
 
-        // === ПОЛУЧАЕМ РОЛИ ПО НАЗВАНИЮ ===
+        // ===== РОЛИ =====
         const role150 = guild.roles.cache.find(r => r.name === "RANKED ADR 150+");
         const role200 = guild.roles.cache.find(r => r.name === "RANKED ADR 200+");
         const role250 = guild.roles.cache.find(r => r.name === "RANKED ADR 250+");
         const role300 = guild.roles.cache.find(r => r.name === "RANKED ADR 300+");
 
-        // === ПРАВА ДОСТУПА ===
+        // ===== ПРАВА =====
         const permissionOverwrites = [
           {
             id: guild.roles.everyone.id,
@@ -368,10 +361,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         if (parseInt(adr) <= 300 && role300)
           permissionOverwrites.push({ id: role300.id, allow: ["Connect"] });
 
-        // === СОЗДАНИЕ КОМНАТЫ ===
+        // ===== СОЗДАНИЕ КОМНАТЫ =====
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
-          type: 2, // голосовой канал
+          type: 2,
           parent: newState.channel.parentId,
           userLimit: 4,
           permissionOverwrites
@@ -379,7 +372,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
         activeRooms.add(room.id);
 
-        // перенос пользователя
+        // перенос сразу
         await member.voice.setChannel(room);
       }
     }
