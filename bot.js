@@ -307,8 +307,6 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-const { ChannelType, PermissionsBitField } = require("discord.js");
-
 // ТВОИ КАНАЛЫ
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
