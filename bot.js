@@ -116,14 +116,19 @@ client.once('ready', async () => {
   console.log(`Бот запущен как ${client.user.tag}`);
 
   const commands = [
-    new SlashCommandBuilder()
-      .setName('stats')
-      .setDescription('PUBG статистика')
-      .addStringOption(option =>
-        option.setName('nickname')
-          .setDescription('Ник игрока')
-          .setRequired(true))
-  ].map(cmd => cmd.toJSON());
+  new SlashCommandBuilder()
+    .setName('stats')
+    .setDescription('PUBG статистика')
+    .addStringOption(option =>
+      option.setName('nickname')
+        .setDescription('Ник игрока')
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName('guest')
+    .setDescription('Доступ к общению без PUBG')
+].map(cmd => cmd.toJSON());
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
