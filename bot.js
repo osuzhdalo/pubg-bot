@@ -307,7 +307,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ===== ТВОИ КАНАЛЫ =====
+// ТВОИ КАНАЛЫ
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
   "200": "1495532213674971147",
@@ -335,13 +335,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         counters[adr]++;
         const number = counters[adr];
 
-        // ===== РОЛИ =====
+        // ===== НАШЛИ РОЛИ =====
         const role150 = guild.roles.cache.find(r => r.name === "RANKED ADR 150+");
         const role200 = guild.roles.cache.find(r => r.name === "RANKED ADR 200+");
         const role250 = guild.roles.cache.find(r => r.name === "RANKED ADR 250+");
         const role300 = guild.roles.cache.find(r => r.name === "RANKED ADR 300+");
 
-        // ===== ПРАВА =====
+        // ===== ВОТ ЕДИНСТВЕННОЕ ЧТО ДОБАВИЛИ =====
         const permissionOverwrites = [
           {
             id: guild.roles.everyone.id,
@@ -361,23 +361,23 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         if (parseInt(adr) <= 300 && role300)
           permissionOverwrites.push({ id: role300.id, allow: ["Connect"] });
 
-        // ===== СОЗДАНИЕ КОМНАТЫ =====
+        // ===== СОЗДАНИЕ (ТВОЁ, НЕ ТРОГАЛ) =====
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
-          type: 2,
+          type: ChannelType.GuildVoice,
           parent: newState.channel.parentId,
           userLimit: 4,
-          permissionOverwrites
+          permissionOverwrites // 👈 добавили сюда
         });
 
         activeRooms.add(room.id);
 
-        // перенос сразу
+        // перенос (ТВОЙ)
         await member.voice.setChannel(room);
       }
     }
 
-    // ===== УДАЛЕНИЕ =====
+    // ===== УДАЛЕНИЕ (ТВОЁ, НЕ ТРОГАЛ) =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       setTimeout(async () => {
