@@ -318,7 +318,7 @@ const CREATE_CHANNELS = {
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const activeRooms = new Set();
 
-// 👇 ДОБАВИЛИ ТОЛЬКО ЭТО (ID ролей)
+// РОЛИ
 const ADR_ROLES = {
   "150": "1495382626146717726",
   "200": "1495382551731110008",
@@ -330,7 +330,6 @@ const ADR_ROLES = {
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
 
-    // ===== СОЗДАНИЕ =====
     for (const adr in CREATE_CHANNELS) {
 
       if (
@@ -344,23 +343,25 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         counters[adr]++;
         const number = counters[adr];
 
-        // 👇 ВОТ ЕДИНСТВЕННОЕ ЧТО ДОБАВИЛИ
+        // ✅ ПРАВА (ФИКС)
         const permissionOverwrites = [
-  {
-    id: guild.roles.everyone.id,
-    deny: ["Connect"]
-  },
+          {
+            id: guild.roles.everyone.id,
+            deny: [PermissionsBitField.Flags.Connect]
+          },
 
-  // 👇 ВАЖНО! разрешаем создателю
-  {
-    id: member.id,
-    allow: ["Connect"]
-  },
+          // 🔥 КРИТИЧНО — разрешаем создателю
+          {
+            id: member.id,
+            allow: [PermissionsBitField.Flags.Connect]
+          },
+
+          // роли ADR
           ...Object.keys(ADR_ROLES)
             .filter(r => parseInt(r) >= parseInt(adr))
             .map(r => ({
               id: ADR_ROLES[r],
-              allow: ["Connect"]
+              allow: [PermissionsBitField.Flags.Connect]
             }))
         ];
 
@@ -369,17 +370,19 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           type: ChannelType.GuildVoice,
           parent: newState.channel.parentId,
           userLimit: 4,
-          permissionOverwrites // 👈 ТОЛЬКО ЭТО ДОБАВИЛИ
+          permissionOverwrites
         });
 
         activeRooms.add(room.id);
 
-        // перенос (НЕ ТРОГАЛИ)
-        await member.voice.setChannel(room);
+        // 🔥 ПЕРЕНОС (добавил catch чтобы увидеть ошибку)
+        await member.voice.setChannel(room).catch(err => {
+          console.log("MOVE ERROR:", err);
+        });
       }
     }
 
-    // ===== УДАЛЕНИЕ (НЕ ТРОГАЛИ) =====
+    // ===== УДАЛЕНИЕ =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       setTimeout(async () => {
