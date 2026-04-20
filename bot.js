@@ -399,23 +399,33 @@ client.on('guildMemberAdd', async (member) => {
       await member.roles.add(role);
     } catch {}
   }
+client.on('guildMemberAdd', async (member) => {
+  const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
 
-  // ===== ЛС СООБЩЕНИЕ =====
+  if (role) {
+    try {
+      await member.roles.add(role);
+    } catch {}
+  }
+
+  // ===== ПОВІДОМЛЕННЯ В ОСОБИСТІ =====
   try {
     await member.send(
-      "👋 Привет!\n\n" +
-      "Добро пожаловать на сервер 🎮\n\n" +
+      "👋 Привіт!\n\n" +
+      "Ласкаво просимо на сервер 🎮\n\n" +
 
-      "🎮 Играть в PUBG:\n" +
-      "/stats твой_ник\n\n" +
+      "🎮 Хочеш грати в PUBG:\n" +
+      "Напиши в каналі #реєстрація:\n" +
+      "👉 /stats твій_нік\n" +
+      "👉 Приклад: /stats osuzhdalo\n\n" +
 
-      "💬 Просто общаться:\n" +
-      "Можешь писать в чатах\n\n" +
+      "💬 Хочеш просто спілкуватися:\n" +
+      "Можеш одразу писати в чатах\n\n" +
 
-      "⚠️ Без /stats нельзя заходить в игровые комнаты"
+      "⚠️ Без /stats немає доступу до ігрових кімнат"
     );
   } catch {
-    console.log("Не удалось отправить ЛС");
+    console.log("Не вдалося надіслати ЛС");
   }
 });
 client.login(process.env.DISCORD_TOKEN);
