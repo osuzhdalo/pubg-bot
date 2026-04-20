@@ -316,7 +316,6 @@ const CREATE_CHANNELS = {
 };
 
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
-const activeRooms = new Set();
 
 // РОЛИ
 const ADR_ROLES = {
@@ -351,66 +350,59 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           userLimit: 4
         });
 
-        activeRooms.add(room.id);
-
         // перенос
         await member.voice.setChannel(room);
 
-        // 🔒 ограничения после
+        // ограничения
         setTimeout(async () => {
-          try {
-            await room.permissionOverwrites.set([
-              {
-                id: guild.roles.everyone.id,
-                deny: ["Connect"]
-              },
-              {
-                id: member.id,
+          await room.permissionOverwrites.set([
+            {
+              id: guild.roles.everyone.id,
+              deny: ["Connect"]
+            },
+            {
+              id: member.id,
+              allow: ["Connect"]
+            },
+            ...Object.keys(ADR_ROLES)
+              .filter(r => parseInt(r) >= parseInt(adr))
+              .map(r => ({
+                id: ADR_ROLES[r],
                 allow: ["Connect"]
-              },
-              ...Object.keys(ADR_ROLES)
-                .filter(r => parseInt(r) >= parseInt(adr))
-                .map(r => ({
-                  id: ADR_ROLES[r],
-                  allow: ["Connect"]
-                }))
-            ]);
-          } catch {}
+              }))
+          ]);
         }, 500);
       }
+    }
+
+    // ================= УДАЛЕНИЕ =================
+    if (oldState.channelId) {
+
+      const channelId = oldState.channelId;
+
+      setTimeout(async () => {
+        const ch = guild.channels.cache.get(channelId);
+        if (!ch) return;
+
+        // 🔥 УДАЛЯЕМ ВСЕ НАШИ АВТОКОМНАТЫ
+        if (
+          ch.type === ChannelType.GuildVoice &&
+          ch.name.startsWith("🎯 ADR RANKED")
+        ) {
+          const hasUsers = guild.voiceStates.cache.some(
+            vs => vs.channelId === channelId
+          );
+
+          if (!hasUsers) {
+            await ch.delete().catch(() => {});
+          }
+        }
+
+      }, 3000);
     }
 
   } catch (err) {
     console.log("VOICE ERROR:", err);
   }
 });
-
-
-// ================= 🔥 АВТО УДАЛЕНИЕ (ГЛАВНЫЙ ФИКС) =================
-setInterval(async () => {
-  try {
-
-    for (const channelId of activeRooms) {
-
-      const channel = client.channels.cache.get(channelId);
-      if (!channel) {
-        activeRooms.delete(channelId);
-        continue;
-      }
-
-      // проверяем через voiceStates
-      const hasUsers = channel.guild.voiceStates.cache.some(
-        vs => vs.channelId === channelId
-      );
-
-      if (!hasUsers) {
-        activeRooms.delete(channelId);
-        await channel.delete().catch(() => {});
-      }
-    }
-
-  } catch (e) {
-    console.log("AUTO DELETE ERROR:", e);
-  }
-}, 5000); // каждые 5 сек
 client.login(process.env.DISCORD_TOKEN);
