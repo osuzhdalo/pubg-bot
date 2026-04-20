@@ -356,7 +356,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         // перенос
         await member.voice.setChannel(room);
 
-        // ограничения ПОСЛЕ
+        // 🔒 ограничения ПОСЛЕ переноса
         setTimeout(async () => {
           try {
             await room.permissionOverwrites.set([
@@ -375,34 +375,39 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
                   allow: ["Connect"]
                 }))
             ]);
-          } catch {}
+          } catch (e) {
+            console.log("PERMISSION ERROR:", e);
+          }
         }, 500);
       }
     }
 
-    // ================= УДАЛЕНИЕ =================
+    // ================= УДАЛЕНИЕ (ФИКС) =================
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       const channelId = oldState.channelId;
 
       const checkDelete = async (tries = 0) => {
-        const ch = guild.channels.cache.get(channelId);
-        if (!ch) return;
 
-        // 🔥 ключевая проверка
-        if (ch.members.size === 0) {
-          activeRooms.delete(ch.id);
-          await ch.delete().catch(() => {});
+        // 🔥 проверяем через voiceStates (а не members)
+        const stillInChannel = guild.voiceStates.cache.some(
+          vs => vs.channelId === channelId
+        );
+
+        if (!stillInChannel) {
+          const ch = guild.channels.cache.get(channelId);
+          if (ch) {
+            activeRooms.delete(channelId);
+            await ch.delete().catch(() => {});
+          }
           return;
         }
 
-        // пробуем максимум 5 раз
         if (tries < 5) {
           setTimeout(() => checkDelete(tries + 1), 2000);
         }
       };
 
-      // первая проверка позже
       setTimeout(() => checkDelete(), 3000);
     }
 
