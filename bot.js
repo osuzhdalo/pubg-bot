@@ -307,7 +307,7 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ТВОИ КАНАЛЫ
+// ID КАНАЛОВ (создание)
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
   "200": "1495532213674971147",
@@ -315,7 +315,7 @@ const CREATE_CHANNELS = {
   "300": "1495532283354943508"
 };
 
-// ID РОЛЕЙ (оставь свои потом)
+// ID РОЛЕЙ
 const ADR_ROLES = {
   "150": "1495382626146717726",
   "200": "1495382551731110008",
@@ -325,10 +325,12 @@ const ADR_ROLES = {
 };
 
 const activeRooms = new Set();
-const creating = new Set(); // 🔥 защита от спама
+const creating = new Set();
 
-client.on("voiceStateUpdate", async (oldState, newState) => {
+client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
+    const member = newState.member;
+    if (!member) return;
 
     // ===== СОЗДАНИЕ =====
     for (const adr in CREATE_CHANNELS) {
@@ -338,54 +340,46 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
         oldState.channelId !== CREATE_CHANNELS[adr]
       ) {
 
-        const member = newState.member;
-
-        // 🔥 защита
         if (creating.has(member.id)) return;
         creating.add(member.id);
 
         const guild = newState.guild;
 
-        // номер комнаты
-        const number =
-          [...activeRooms]
-            .map(id => guild.channels.cache.get(id))
-            .filter(ch => ch && ch.name.includes(`ADR RANKED ${adr}+`))
-            .length + 1;
-
-        // права
         const permissionOverwrites = [
           {
             id: guild.roles.everyone.id,
-            deny: [PermissionsBitField.Flags.Connect],
+            deny: ["Connect"]
           },
           ...Object.keys(ADR_ROLES)
             .filter(r => parseInt(r) >= parseInt(adr))
             .map(r => ({
               id: ADR_ROLES[r],
-              allow: [PermissionsBitField.Flags.Connect],
-            })),
+              allow: ["Connect"]
+            }))
         ];
 
         const room = await guild.channels.create({
-          name: `🎯 ADR RANKED ${adr}+ #${number}`,
-          type: ChannelType.GuildVoice,
+          name: `🎯 ADR RANKED ${adr}+`,
+          type: 2,
           parent: newState.channel.parentId,
           userLimit: 4,
-          permissionOverwrites,
+          permissionOverwrites
         });
 
         activeRooms.add(room.id);
 
-        // 🔥 стабильный перенос
+        // 🔥 ФИКС ПЕРЕНОСА
         setTimeout(async () => {
           try {
-            if (member.voice.channelId === CREATE_CHANNELS[adr]) {
-              await member.voice.setChannel(room);
+            const fresh = await guild.members.fetch(member.id);
+
+            if (fresh.voice.channelId === CREATE_CHANNELS[adr]) {
+              await fresh.voice.setChannel(room);
             }
           } catch {}
+
           creating.delete(member.id);
-        }, 800);
+        }, 1000);
       }
     }
 
@@ -401,7 +395,7 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
           await ch.delete().catch(() => {});
         }
 
-      }, 3000);
+      }, 4000);
     }
 
   } catch (err) {
