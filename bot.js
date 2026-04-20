@@ -145,12 +145,13 @@ client.on('interactionCreate', async (interaction) => {
       const member = interaction.member;
       const guild = interaction.guild;
 
-      // УБИРАЕМ REGISTERED
-      const regRole = guild.roles.cache.find(r => r.name === "REGISTERED");
-      if (regRole && member.roles.cache.has(regRole.id)) {
-        await member.roles.remove(regRole);
-      }
-
+   // УБИРАЕМ REGISTERED ТОЛЬКО ЕСЛИ ВЫДАЛИ РОЛИ
+if (givenRoles.length > 0) {
+  const regRole = guild.roles.cache.find(r => r.name === "REGISTERED");
+  if (regRole && member.roles.cache.has(regRole.id)) {
+    await member.roles.remove(regRole);
+  }
+}
       // СМЕНА НИКА
       if (member.manageable) {
         try { await member.setNickname(nickname); } catch {}
@@ -389,6 +390,30 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
   } catch (err) {
     console.log("VOICE ERROR:", err);
+  }
+});
+// ===== GUEST КОМАНДА =====
+client.on('messageCreate', async (message) => {
+  if (message.author.bot) return;
+
+  if (message.content.toLowerCase() === "!guest") {
+    const role = message.guild.roles.cache.find(r => r.name === "GUEST");
+
+    if (!role) {
+      return message.reply("❌ Роль GUEST не найдена");
+    }
+
+    if (message.member.roles.cache.has(role.id)) {
+      return message.reply("✅ У тебя уже есть доступ");
+    }
+
+    try {
+      await message.member.roles.add(role);
+      await message.reply("✅ Ты получил доступ к общению!");
+    } catch (err) {
+      console.log(err);
+      message.reply("❌ Ошибка при выдаче роли");
+    }
   }
 });
 client.login(process.env.DISCORD_TOKEN);
