@@ -317,7 +317,7 @@ const CREATE_CHANNELS = {
   "300": "1495532283354943508"
 };
 
-// ВСТАВЬ ID РОЛЕЙ
+// ID РОЛЕЙ (оставь свои потом)
 const ADR_ROLES = {
   "150": "1495382626146717726",
   "200": "1495382551731110008",
@@ -327,19 +327,26 @@ const ADR_ROLES = {
 };
 
 const activeRooms = new Set();
+const creating = new Set(); // 🔥 защита от спама
 
 client.on("voiceStateUpdate", async (oldState, newState) => {
   try {
 
-    // ================= СОЗДАНИЕ =================
+    // ===== СОЗДАНИЕ =====
     for (const adr in CREATE_CHANNELS) {
 
       if (
         newState.channelId === CREATE_CHANNELS[adr] &&
         oldState.channelId !== CREATE_CHANNELS[adr]
       ) {
-        const guild = newState.guild;
+
         const member = newState.member;
+
+        // 🔥 защита
+        if (creating.has(member.id)) return;
+        creating.add(member.id);
+
+        const guild = newState.guild;
 
         // номер комнаты
         const number =
@@ -348,7 +355,7 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
             .filter(ch => ch && ch.name.includes(`ADR RANKED ${adr}+`))
             .length + 1;
 
-        // права доступа
+        // права
         const permissionOverwrites = [
           {
             id: guild.roles.everyone.id,
@@ -362,7 +369,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
             })),
         ];
 
-        // создаём канал
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
           type: ChannelType.GuildVoice,
@@ -373,23 +379,25 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
 
         activeRooms.add(room.id);
 
-        // ===== ГАРАНТИРОВАННЫЙ ПЕРЕНОС =====
+        // 🔥 стабильный перенос
         setTimeout(async () => {
-          if (member.voice && member.voice.channelId !== room.id) {
-            await member.voice.setChannel(room).catch(() => {});
-          }
-        }, 700);
+          try {
+            if (member.voice.channelId === CREATE_CHANNELS[adr]) {
+              await member.voice.setChannel(room);
+            }
+          } catch {}
+          creating.delete(member.id);
+        }, 800);
       }
     }
 
-    // ================= УДАЛЕНИЕ =================
+    // ===== УДАЛЕНИЕ =====
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       setTimeout(async () => {
         const ch = oldState.guild.channels.cache.get(oldState.channelId);
         if (!ch) return;
 
-        // проверка после задержки
         if (ch.members.size === 0) {
           activeRooms.delete(ch.id);
           await ch.delete().catch(() => {});
