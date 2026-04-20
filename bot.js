@@ -307,7 +307,6 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-// ТВОИ КАНАЛЫ
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
   "200": "1495532213674971147",
@@ -316,8 +315,8 @@ const CREATE_CHANNELS = {
 };
 
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
+const activeRooms = new Set();
 
-// РОЛИ
 const ADR_ROLES = {
   "150": "1495382626146717726",
   "200": "1495382551731110008",
@@ -328,18 +327,15 @@ const ADR_ROLES = {
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
-
     const guild = newState.guild;
     const member = newState.member;
 
-    // ================= СОЗДАНИЕ =================
+    // ===== СОЗДАНИЕ =====
     for (const adr in CREATE_CHANNELS) {
-
       if (
         newState.channelId === CREATE_CHANNELS[adr] &&
         oldState.channelId !== CREATE_CHANNELS[adr]
       ) {
-
         counters[adr]++;
         const number = counters[adr];
 
@@ -350,55 +346,47 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           userLimit: 4
         });
 
-        // перенос
-        await member.voice.setChannel(room);
+        activeRooms.add(room.id);
 
-        // ограничения
-        setTimeout(async () => {
-          await room.permissionOverwrites.set([
-            {
-              id: guild.roles.everyone.id,
-              deny: ["Connect"]
-            },
-            {
-              id: member.id,
-              allow: ["Connect"]
-            },
-            ...Object.keys(ADR_ROLES)
-              .filter(r => parseInt(r) >= parseInt(adr))
-              .map(r => ({
-                id: ADR_ROLES[r],
-                allow: ["Connect"]
-              }))
-          ]);
-        }, 500);
+        await member.voice.setChannel(room);
       }
     }
 
-    // ================= УДАЛЕНИЕ =================
-    if (oldState.channelId) {
+    // ===== ФИЛЬТР (НОРМАЛЬНЫЙ) =====
+    if (newState.channelId && activeRooms.has(newState.channelId)) {
+      const channel = newState.channel;
+      const match = channel.name.match(/ADR RANKED (\d+)\+/);
 
-      const channelId = oldState.channelId;
+      if (match) {
+        const requiredAdr = parseInt(match[1]);
 
+        const hasAccess = Object.keys(ADR_ROLES).some(adr => {
+          return (
+            parseInt(adr) >= requiredAdr &&
+            member.roles.cache.has(ADR_ROLES[adr])
+          );
+        });
+
+        if (!hasAccess) {
+          // мягкий кик (почти незаметно)
+          setTimeout(() => {
+            member.voice.setChannel(null).catch(() => {});
+          }, 300);
+        }
+      }
+    }
+
+    // ===== УДАЛЕНИЕ (ТВОЙ СТАРЫЙ ВАРИАНТ — ОН РАБОЧИЙ) =====
+    if (oldState.channelId && activeRooms.has(oldState.channelId)) {
       setTimeout(async () => {
-        const ch = guild.channels.cache.get(channelId);
+        const ch = oldState.guild.channels.cache.get(oldState.channelId);
         if (!ch) return;
 
-        // 🔥 УДАЛЯЕМ ВСЕ НАШИ АВТОКОМНАТЫ
-        if (
-          ch.type === ChannelType.GuildVoice &&
-          ch.name.startsWith("🎯 ADR RANKED")
-        ) {
-          const hasUsers = guild.voiceStates.cache.some(
-            vs => vs.channelId === channelId
-          );
-
-          if (!hasUsers) {
-            await ch.delete().catch(() => {});
-          }
+        if (ch.members.size === 0) {
+          activeRooms.delete(ch.id);
+          await ch.delete().catch(() => {});
         }
-
-      }, 3000);
+      }, 1500);
     }
 
   } catch (err) {
