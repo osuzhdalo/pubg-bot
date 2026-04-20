@@ -370,7 +370,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         activeRooms.add(room.id);
 
         // перенос (НЕ ТРОГАЛ)
-        await member.voice.setChannel(room);
+        setTimeout(async () => {
+  if (member.voice && member.voice.channelId !== room.id) {
+    await member.voice.setChannel(room).catch(() => {});
+  }
+}, 500);
       }
     }
 
@@ -378,15 +382,15 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       setTimeout(async () => {
-        const ch = oldState.guild.channels.cache.get(oldState.channelId);
-        if (!ch) return;
+  const ch = oldState.guild.channels.cache.get(oldState.channelId);
+  if (!ch) return;
 
-        if (ch.members.size === 0) {
-          activeRooms.delete(ch.id);
-          await ch.delete().catch(() => {});
-        }
-
-      }, 1500);
+  // небольшая защита от бага Discord
+  if (ch.members.size === 0) {
+    activeRooms.delete(ch.id);
+    await ch.delete().catch(() => {});
+  }
+}, 3000);
     }
 
   } catch (err) {
