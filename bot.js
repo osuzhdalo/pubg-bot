@@ -307,6 +307,8 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
+const { ChannelType, PermissionsBitField } = require("discord.js");
+
 // ТВОИ КАНАЛЫ
 const CREATE_CHANNELS = {
   "150": "1495532168946913310",
@@ -315,10 +317,7 @@ const CREATE_CHANNELS = {
   "300": "1495532283354943508"
 };
 
-const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
-const activeRooms = new Set();
-
-// 👉 ВСТАВЬ СЮДА ID РОЛЕЙ
+// ВСТАВЬ ID РОЛЕЙ
 const ADR_ROLES = {
   "150": "1495382626146717726",
   "200": "1495382551731110008",
@@ -327,70 +326,76 @@ const ADR_ROLES = {
   "350": "1495380397524123820"
 };
 
-client.on('voiceStateUpdate', async (oldState, newState) => {
+const activeRooms = new Set();
+
+client.on("voiceStateUpdate", async (oldState, newState) => {
   try {
 
-    // ===== СОЗДАНИЕ =====
+    // ================= СОЗДАНИЕ =================
     for (const adr in CREATE_CHANNELS) {
 
       if (
         newState.channelId === CREATE_CHANNELS[adr] &&
         oldState.channelId !== CREATE_CHANNELS[adr]
       ) {
-
         const guild = newState.guild;
         const member = newState.member;
 
-        counters[adr]++;
-        const number = counters[adr];
+        // номер комнаты
+        const number =
+          [...activeRooms]
+            .map(id => guild.channels.cache.get(id))
+            .filter(ch => ch && ch.name.includes(`ADR RANKED ${adr}+`))
+            .length + 1;
 
-        // 👇 ДОБАВЛЕНО: ПРАВА ДОСТУПА
+        // права доступа
         const permissionOverwrites = [
           {
             id: guild.roles.everyone.id,
-            deny: ["Connect"]
+            deny: [PermissionsBitField.Flags.Connect],
           },
           ...Object.keys(ADR_ROLES)
             .filter(r => parseInt(r) >= parseInt(adr))
             .map(r => ({
               id: ADR_ROLES[r],
-              allow: ["Connect"]
-            }))
+              allow: [PermissionsBitField.Flags.Connect],
+            })),
         ];
 
-        // ===== СОЗДАНИЕ КОМНАТЫ =====
+        // создаём канал
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
           type: ChannelType.GuildVoice,
           parent: newState.channel.parentId,
           userLimit: 4,
-          permissionOverwrites // 👈 ВОТ ЕДИНСТВЕННОЕ ДОБАВЛЕНИЕ
+          permissionOverwrites,
         });
 
         activeRooms.add(room.id);
 
-        // перенос (НЕ ТРОГАЛ)
+        // ===== ГАРАНТИРОВАННЫЙ ПЕРЕНОС =====
         setTimeout(async () => {
-  if (member.voice && member.voice.channelId !== room.id) {
-    await member.voice.setChannel(room).catch(() => {});
-  }
-}, 500);
+          if (member.voice && member.voice.channelId !== room.id) {
+            await member.voice.setChannel(room).catch(() => {});
+          }
+        }, 700);
       }
     }
 
-    // ===== УДАЛЕНИЕ (НЕ ТРОГАЛ) =====
+    // ================= УДАЛЕНИЕ =================
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
 
       setTimeout(async () => {
-  const ch = oldState.guild.channels.cache.get(oldState.channelId);
-  if (!ch) return;
+        const ch = oldState.guild.channels.cache.get(oldState.channelId);
+        if (!ch) return;
 
-  // небольшая защита от бага Discord
-  if (ch.members.size === 0) {
-    activeRooms.delete(ch.id);
-    await ch.delete().catch(() => {});
-  }
-}, 3000);
+        // проверка после задержки
+        if (ch.members.size === 0) {
+          activeRooms.delete(ch.id);
+          await ch.delete().catch(() => {});
+        }
+
+      }, 3000);
     }
 
   } catch (err) {
