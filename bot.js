@@ -399,33 +399,21 @@ client.on('guildMemberAdd', async (member) => {
       await member.roles.add(role);
     } catch {}
   }
-client.on('guildMemberAdd', async (member) => {
-  const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
 
-  if (role) {
-    try {
-      await member.roles.add(role);
-    } catch {}
-  }
-
-  // ===== ПОВІДОМЛЕННЯ В ОСОБИСТІ =====
   try {
     await member.send(
       "👋 Привіт!\n\n" +
       "Ласкаво просимо на сервер 🎮\n\n" +
-
       "🎮 Хочеш грати в PUBG:\n" +
       "Напиши в каналі #реєстрація:\n" +
       "👉 /stats твій_нік\n" +
       "👉 Приклад: /stats osuzhdalo\n\n" +
-
       "💬 Хочеш просто спілкуватися:\n" +
       "Можеш одразу писати в чатах\n\n" +
-
       "⚠️ Без /stats немає доступу до ігрових кімнат"
     );
   } catch {
     console.log("Не вдалося надіслати ЛС");
   }
-});
+}); // ← ВОТ ЭТА СКОБКА ОЧЕНЬ ВАЖНА
 client.login(process.env.DISCORD_TOKEN);
