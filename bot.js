@@ -391,4 +391,31 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     console.log("VOICE ERROR:", err);
   }
 });
+client.on('guildMemberAdd', async (member) => {
+  const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
+
+  if (role) {
+    try {
+      await member.roles.add(role);
+    } catch {}
+  }
+
+  // ===== ЛС СООБЩЕНИЕ =====
+  try {
+    await member.send(
+      "👋 Привет!\n\n" +
+      "Добро пожаловать на сервер 🎮\n\n" +
+
+      "🎮 Играть в PUBG:\n" +
+      "/stats твой_ник\n\n" +
+
+      "💬 Просто общаться:\n" +
+      "Можешь писать в чатах\n\n" +
+
+      "⚠️ Без /stats нельзя заходить в игровые комнаты"
+    );
+  } catch {
+    console.log("Не удалось отправить ЛС");
+  }
+});
 client.login(process.env.DISCORD_TOKEN);
