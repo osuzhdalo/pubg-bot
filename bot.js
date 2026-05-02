@@ -195,11 +195,14 @@ client.on('interactionCreate', async (interaction) => {
       );
 
       const stats = normalRes.data.data.attributes.gameModeStats;
-      const normal = stats['squad-fpp'] || stats['squad'] || {};
-
+   const fpp = stats['squad-fpp'] || { roundsPlayed: 0, damageDealt: 0, kills: 0 };
+const tpp = stats['squad'] || { roundsPlayed: 0, damageDealt: 0, kills: 0 };
       const fppGames = normal.roundsPlayed || 0;
       const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
       const fppKd = fppGames ? (normal.kills / fppGames) : 0;
+      const tppGames = tpp.roundsPlayed || 0;
+const tppAdr = tppGames ? Math.round(tpp.damageDealt / tppGames) : 0;
+const tppKd = tppGames ? (tpp.kills / tppGames) : 0;
 
       // RANKED
       let ranked = {};
