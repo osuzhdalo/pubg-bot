@@ -519,20 +519,28 @@ setInterval(async () => {
     const channel = await client.channels.fetch(MATCH_CHANNEL_ID);
     if (!channel) return;
 
-    const db = loadDB();
+const db = loadDB();
+const player = "osuzhdalo";
 
-    const player = "osuzhdalo";
+// 1. INIT (ВСЕГДА)
+db[player] ??= {
+  kills: 0,
+  assists: 0,
+  damage: 0,
+  lastMatchId: null,
+  bestKills: 0
+};
 
-    // 1. init DB
-    if (!db[player]) {
-      db[player] = {
-        kills: 0,
-        assists: 0,
-        damage: 0,
-        lastMatchId: null,
-        bestKills: 0
-      };
-    }
+// 2. логика
+if (!type) {
+  db[player].lastMatchId = lastMatchId;
+  db[player].kills = stats.kills;
+  db[player].assists = stats.assists;
+  db[player].damage = stats.damage;
+
+  saveDB(db);
+  return;
+}
 
     // 2. получаем playerId
     const playerRes = await axios.get(
