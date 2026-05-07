@@ -143,9 +143,6 @@ const ALL_ROLES = [
 async function createMatchCard(data, type) {
   if (!createCanvas) return null;
 
-  const canvas = createCanvas(1200, 600);
-  const ctx = canvas.getContext('2d');
-
   // фон
   ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
   ctx.fillRect(0, 0, 1200, 600);
@@ -207,9 +204,6 @@ async function createMatchCard(data, type) {
 
   return canvas.toBuffer();
 }
-  const canvas = createCanvas(1200, 600);
-  const ctx = canvas.getContext('2d');
-
   // фон
   ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
   ctx.fillRect(0, 0, 1200, 600);
