@@ -600,10 +600,13 @@ setInterval(async () => {
     };
 
     // 6. тип события
-    let type = null;
+   let type = null;
 
-    if (stats.win) type = "win";
-    if (stats.kills > db[player].bestKills) type = "record";
+if (stats.kills > db[player].bestKills) {
+  type = "record";
+} else if (stats.win) {
+  type = "win";
+}
 
     if (!type) {
       // всё равно сохраняем матч, чтобы не ловить дубли
@@ -613,13 +616,14 @@ setInterval(async () => {
     }
 
     // 7. обновление базы
-    db[player] = {
-      kills: stats.kills,
-      assists: stats.assists,
-      damage: stats.damage,
-      lastMatchId: lastMatchId,
-      bestKills: Math.max(db[player].bestKills || 0, stats.kills)
-    };
+db[player] = {
+  ...db[player],
+  kills: stats.kills,
+  assists: stats.assists,
+  damage: stats.damage,
+  lastMatchId: lastMatchId,
+  bestKills: Math.max(db[player].bestKills || 0, stats.kills)
+};
 
     saveDB(db);
 
