@@ -306,10 +306,10 @@ const finalTppAdr = rankedTppGames > 0 ? rankedTppAdr : tppAdr;
           `🎮 Games: ${duoGames}\n` +
           `💥 ADR: ${duoAdr}\n` +
           `🔫 KD: ${duoKd.toFixed(2)}\n\n` +
-          🟡 TPP MODE (Ranked priority)
-          🎮 Ranked TPP Games: ${rankedTppGames}
-          🎮 Normal TPP Games: ${tppGames}
-          💥 TPP ADR: ${finalTppAdr}
+          `🟡 TPP MODE (Ranked priority)\n` +
+          `🎮 Ranked TPP Games: ${rankedTppGames}\n` +
+          `🎮 Normal TPP Games: ${tppGames}\n` +
+          `💥 TPP ADR: ${finalTppAdr}\n`
 
           `🟢 Роли: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
         );
