@@ -195,8 +195,7 @@ client.on('interactionCreate', async (interaction) => {
       );
 
       const stats = normalRes.data.data.attributes.gameModeStats;
-      const tpp = stats['squad'] || {}; // TPP (обычный режим)
-      const rankedTpp = rankedStats?.['squad'] || rankedStats?.['squad-fpp'] || {}; // Ranked TPP
+      const normal = stats['squad-fpp'] || stats['squad'] || {};
 
       const fppGames = normal.roundsPlayed || 0;
       const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
@@ -205,8 +204,6 @@ client.on('interactionCreate', async (interaction) => {
       // RANKED
       let ranked = {};
       let duo = {};
-      let tppGames = 0, tppAdr = 0;
-let rankedTppGames = 0, rankedTppAdr = 0;
 
       let rankedGames = 0, rankedAdr = 0, rankedKd = 0;
       let duoGames = 0, duoAdr = 0, duoKd = 0;
@@ -217,13 +214,14 @@ let rankedTppGames = 0, rankedTppAdr = 0;
         const rankedRes = await axios.get(
           `${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`,
           {
-            const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
             headers: {
               Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
               Accept: 'application/vnd.api+json'
             }
           }
-        ); 
+        );
+
+        const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
 
         ranked = rankedStats['squad'] || rankedStats['squad-fpp'] || {};
         duo = rankedStats['duo'] || rankedStats['duo-fpp'] || {};
@@ -235,15 +233,6 @@ let rankedTppGames = 0, rankedTppAdr = 0;
         duoGames = duo.roundsPlayed || 0;
         duoAdr = duoGames ? Math.round(duo.damageDealt / duoGames) : 0;
         duoKd = duoGames ? (duo.kills / duoGames) : 0;
-        // ===== TPP ADR (приоритет Ranked) =====
-rankedTppGames = rankedTpp.roundsPlayed || 0;
-tppGames = tpp.roundsPlayed || 0;
-
-rankedTppAdr = rankedTppGames ? Math.round(rankedTpp.damageDealt / rankedTppGames) : 0;
-tppAdr = tppGames ? Math.round(tpp.damageDealt / tppGames) : 0;
-
-// итоговый TPP ADR (приоритет ranked)
-const finalTppAdr = rankedTppGames > 0 ? rankedTppAdr : tppAdr;
 
         rp = ranked.currentRankPoint || 0;
         tier = ranked.currentTier?.tier || "UNRANKED";
@@ -280,7 +269,6 @@ const finalTppAdr = rankedTppGames > 0 ? rankedTppAdr : tppAdr;
       await give(getFppKdRole(fppKd));
       await give(getRankedKdRole(rankedKd));
       await give(getRankedDuoKdRole(duoKd));
-      await give(getFppAdrRole(finalTppAdr));
 
       // EMBED
       const embed = new EmbedBuilder()
@@ -305,10 +293,6 @@ const finalTppAdr = rankedTppGames > 0 ? rankedTppAdr : tppAdr;
           `🎮 Games: ${duoGames}\n` +
           `💥 ADR: ${duoAdr}\n` +
           `🔫 KD: ${duoKd.toFixed(2)}\n\n` +
-          `🟡 TPP MODE (Ranked priority)\n` +
-          `🎮 Ranked TPP Games: ${rankedTppGames}\n` +
-          `🎮 Normal TPP Games: ${tppGames}\n` +
-          💥 TPP ADR: ${finalTppAdr}\n` +
 
           `🟢 Роли: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
         );
