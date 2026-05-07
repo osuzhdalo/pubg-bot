@@ -212,8 +212,6 @@ client.on('interactionCreate', async (interaction) => {
 
       // RANKED
       // ===== ONLY TPP RANKED =====
-const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
-
 const tppSquad = rankedStats['squad'] || {};
 const tppDuo = rankedStats['duo'] || {};
 
@@ -229,7 +227,8 @@ const tppAdr = tppGames
       let duo = {};
 
       let rankedGames = 0, rankedAdr = 0, rankedKd = 0;
-      let duoGames = 0, duoAdr = 0, duoKd = 0;
+      let duoGames = 0, duoAdr = 0, duoKd = 0; let tppAdr = 100;
+      let tppGames = 0;
 
       let tier = "UNRANKED", subTier = "", rp = 0;
 
@@ -245,6 +244,18 @@ const tppAdr = tppGames
         );
 
         const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
+        const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
+
+const tppSquad = rankedStats['squad'] || {};
+const tppDuo = rankedStats['duo'] || {};
+
+const tppMain = (tppSquad.roundsPlayed || 0) > 0 ? tppSquad : tppDuo;
+
+tppGames = tppMain.roundsPlayed || 0;
+
+tppAdr = tppGames
+  ? Math.round(tppMain.damageDealt / tppGames)
+  : 100;
 
         ranked = rankedStats['squad'] || rankedStats['squad-fpp'] || {};
         duo = rankedStats['duo'] || rankedStats['duo-fpp'] || {};
