@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const {
   Client,
   GatewayIntentBits,
@@ -194,7 +195,8 @@ client.on('interactionCreate', async (interaction) => {
       );
 
       const stats = normalRes.data.data.attributes.gameModeStats;
-      const normal = stats['squad-fpp'] || stats['squad'] || {};
+      const tpp = stats['squad'] || {}; // TPP (обычный режим)
+      const rankedTpp = rankedStats?.['squad'] || rankedStats?.['squad-fpp'] || {}; // Ranked TPP
 
       const fppGames = normal.roundsPlayed || 0;
       const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
@@ -203,6 +205,8 @@ client.on('interactionCreate', async (interaction) => {
       // RANKED
       let ranked = {};
       let duo = {};
+      let tppGames = 0, tppAdr = 0;
+let rankedTppGames = 0, rankedTppAdr = 0;
 
       let rankedGames = 0, rankedAdr = 0, rankedKd = 0;
       let duoGames = 0, duoAdr = 0, duoKd = 0;
@@ -220,24 +224,7 @@ client.on('interactionCreate', async (interaction) => {
           }
         );
 
-       let tppAdr = 100;
-let tppGames = 0;
-
-const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats || {};
-
-// TPP RANKED ONLY
-const tppRanked = rankedStats['squad'] || {};
-const tppNormal = stats['squad'] || {};
-
-// PRIORITY: ranked → normal
-const tppSource =
-  (tppRanked.roundsPlayed || 0) > 0 ? tppRanked : tppNormal;
-
-tppGames = tppSource.roundsPlayed || 0;
-
-tppAdr = tppGames
-  ? Math.round(tppSource.damageDealt / tppGames)
-  : 100;
+        const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
 
         ranked = rankedStats['squad'] || rankedStats['squad-fpp'] || {};
         duo = rankedStats['duo'] || rankedStats['duo-fpp'] || {};
@@ -249,6 +236,15 @@ tppAdr = tppGames
         duoGames = duo.roundsPlayed || 0;
         duoAdr = duoGames ? Math.round(duo.damageDealt / duoGames) : 0;
         duoKd = duoGames ? (duo.kills / duoGames) : 0;
+        // ===== TPP ADR (приоритет Ranked) =====
+rankedTppGames = rankedTpp.roundsPlayed || 0;
+tppGames = tpp.roundsPlayed || 0;
+
+rankedTppAdr = rankedTppGames ? Math.round(rankedTpp.damageDealt / rankedTppGames) : 0;
+tppAdr = tppGames ? Math.round(tpp.damageDealt / tppGames) : 0;
+
+// итоговый TPP ADR (приоритет ranked)
+const finalTppAdr = rankedTppGames > 0 ? rankedTppAdr : tppAdr;
 
         rp = ranked.currentRankPoint || 0;
         tier = ranked.currentTier?.tier || "UNRANKED";
@@ -279,14 +275,13 @@ tppAdr = tppGames
 
       // ВЫДАЧА
       await give(getRankRoleName(tier, subTier));
-      if (typeof fppAdr === "number") {
-  await give(getFppAdrRole(fppAdr));
-}
+      await give(getFppAdrRole(fppAdr));
       await give(getRankedAdrRole(rankedAdr));
       await give(getRankedDuoAdrRole(duoAdr));
       await give(getFppKdRole(fppKd));
       await give(getRankedKdRole(rankedKd));
       await give(getRankedDuoKdRole(duoKd));
+      await give(getRankedAdrRole(finalTppAdr));
 
       // EMBED
       const embed = new EmbedBuilder()
@@ -311,7 +306,10 @@ tppAdr = tppGames
           `🎮 Games: ${duoGames}\n` +
           `💥 ADR: ${duoAdr}\n` +
           `🔫 KD: ${duoKd.toFixed(2)}\n\n` +
-          `🟡 TPP ADR: ${tppAdr}\n\n` +
+          🟡 TPP MODE (Ranked priority)
+          🎮 Ranked TPP Games: ${rankedTppGames}
+          🎮 Normal TPP Games: ${tppGames}
+          💥 TPP ADR: ${finalTppAdr}
 
           `🟢 Роли: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
         );
