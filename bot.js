@@ -35,78 +35,18 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
-// ===== ADR =====
-function getFppAdrRole(adr) {
-  if (adr >= 350) return "FPP ADR 350+";
-  if (adr >= 300) return "FPP ADR 300+";
-  if (adr >= 250) return "FPP ADR 250+";
-  if (adr >= 200) return "FPP ADR 200+";
-  if (adr >= 150) return "FPP ADR 150+";
-  return "FPP ADR 100+";
-}
-
-function getRankedAdrRole(adr) {
-  if (adr >= 350) return "RANKED ADR 350+";
-  if (adr >= 300) return "RANKED ADR 300+";
-  if (adr >= 250) return "RANKED ADR 250+";
-  if (adr >= 200) return "RANKED ADR 200+";
-  if (adr >= 150) return "RANKED ADR 150+";
-  return "RANKED ADR 100+";
-}
-
-function getRankedDuoAdrRole(adr) {
-  if (adr >= 350) return "RANKED DUO ADR 350+";
-  if (adr >= 300) return "RANKED DUO ADR 300+";
-  if (adr >= 250) return "RANKED DUO ADR 250+";
-  if (adr >= 200) return "RANKED DUO ADR 200+";
-  if (adr >= 150) return "RANKED DUO ADR 150+";
-  return "RANKED DUO ADR 100+";
-}
-function getTppAdrRole(adr) {
-  if (adr >= 350) return "TPP ADR 350+";
-  if (adr >= 300) return "TPP ADR 300+";
-  if (adr >= 250) return "TPP ADR 250+";
-  if (adr >= 200) return "TPP ADR 200+";
-  if (adr >= 150) return "TPP ADR 150+";
-  return "TPP ADR 100+";
-}
-
-// ===== KD =====
-function getFppKdRole(kd) {
-  if (kd >= 2) return "FPP KD 2+";
-  if (kd >= 1.5) return "FPP KD 1.5+";
-  if (kd >= 1) return "FPP KD 1+";
-  return null;
-}
-
-function getRankedKdRole(kd) {
-  if (kd >= 2) return "RANKED KD 2+";
-  if (kd >= 1.5) return "RANKED KD 1.5+";
-  if (kd >= 1) return "RANKED KD 1+";
-  return null;
-}
-
-function getRankedDuoKdRole(kd) {
-  if (kd >= 2) return "RANKED DUO KD 2+";
-  if (kd >= 1.5) return "RANKED DUO KD 1.5+";
-  if (kd >= 1) return "RANKED DUO KD 1+";
-  return null;
-}
-
-// ===== RANK =====
-function getRankRoleName(tier, subTier) {
-  if (!tier || !subTier) return null;
-  const formatted = tier.charAt(0) + tier.slice(1).toLowerCase();
-  return `${formatted} ${subTier}`;
-}
-
-// ===== ВСЕ РОЛИ =====
+const ALL_ROLES = [
   "TPP ADR 350+","TPP ADR 300+","TPP ADR 250+",
   "TPP ADR 200+","TPP ADR 150+","TPP ADR 100+",
-  "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+","FPP ADR 200+","FPP ADR 100+",
-  "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+","RANKED ADR 200+","RANKED ADR 150+","RANKED ADR 100+",
 
-  "RANKED DUO ADR 350+","RANKED DUO ADR 300+","RANKED DUO ADR 250+","RANKED DUO ADR 200+","RANKED DUO ADR 100+",
+  "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+",
+  "FPP ADR 200+","FPP ADR 150+","FPP ADR 100+",
+
+  "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+",
+  "RANKED ADR 200+","RANKED ADR 150+","RANKED ADR 100+",
+
+  "RANKED DUO ADR 350+","RANKED DUO ADR 300+","RANKED DUO ADR 250+",
+  "RANKED DUO ADR 200+","RANKED DUO ADR 150+","RANKED DUO ADR 100+",
 
   "FPP KD 2+","FPP KD 1.5+","FPP KD 1+",
   "RANKED KD 2+","RANKED KD 1.5+","RANKED KD 1+",
