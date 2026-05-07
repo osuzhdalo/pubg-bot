@@ -212,7 +212,7 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       // PLAYER
-      const playerRes = await axios.get(
+     const playerRes = await axios.get(
   `${PUBG_API}/players?filter[playerNames]=${player}`,
   {
     headers: {
