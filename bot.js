@@ -151,17 +151,14 @@ client.on('interactionCreate', async (interaction) => {
       const fppKd = fppGames ? (normal.kills / fppGames) : 0;
 
       // RANKED
-      // ===== ONLY TPP RANKED =====
-const tppSquad = rankedStats['squad'] || {};
-const tppDuo = rankedStats['duo'] || {};
 
 // берем общий TPP (squad приоритет, duo запасной)
-const tppMain = tppSquad.roundsPlayed > 0 ? tppSquad : tppDuo;
+const tppSquad = rankedStats['squad'] || {};
 
-const tppGames = tppMain.roundsPlayed || 0;
+const tppGames = tppSquad.roundsPlayed || 0;
 
 const tppAdr = tppGames
-  ? Math.round(tppMain.damageDealt / tppGames)
+  ? Math.round(tppSquad.damageDealt / tppGames)
   : 100;
       let ranked = {};
       let duo = {};
