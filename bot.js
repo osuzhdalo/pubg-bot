@@ -220,10 +220,12 @@ const tppAdr = tppGames ? Math.round(normalTpp.damageDealt / tppGames) : 0;
       let duo = {};
 
       let rankedGames = 0, rankedAdr = 0, rankedKd = 0;
-      let duoGames = 0, duoAdr = 0, duoKd = 0;
+let duoGames = 0, duoAdr = 0, duoKd = 0;
 
-      let tier = "UNRANKED", subTier = "", rp = 0;
+let tppRankedGames = 0;
+let tppRankedAdr = 0;
 
+let tier = "UNRANKED", subTier = "", rp = 0;
       try {
         const rankedRes = await axios.get(
           `${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`,
@@ -248,8 +250,8 @@ rankedKd = rankedGames ? (rankedFpp.kills / rankedGames) : 0;
         duoGames = duo.roundsPlayed || 0;
         duoAdr = duoGames ? Math.round(duo.damageDealt / duoGames) : 0;
         duoKd = duoGames ? (duo.kills / duoGames) : 0;
-        let tppRankedGames = rankedTpp.roundsPlayed || 0;
-let tppRankedAdr = 0;
+        tppRankedGames = rankedTpp.roundsPlayed || 0;
+tppRankedAdr = 0;
 
 // если ranked TPP есть
 if (tppRankedGames > 0) {
