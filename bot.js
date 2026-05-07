@@ -213,14 +213,14 @@ client.on('interactionCreate', async (interaction) => {
 
       // PLAYER
       const playerRes = await axios.get(
-        `${PUBG_API}/players?filter[playerNames]=${nickname}`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-            Accept: 'application/vnd.api+json'
-          }
-        }
-      );
+  `${PUBG_API}/players?filter[playerNames]=${player}`,
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+      Accept: "application/vnd.api+json"
+    }
+  }
+);
 
       if (!playerRes.data.data.length) {
         return interaction.editReply("❌ Игрок не найден");
@@ -541,14 +541,35 @@ const playerData = playerRes.data.data[0];
 
 const matches = playerData?.relationships?.matches?.data;
 
-if (!matches?.length) return;
-const lastMatchId = matches[0].id;
+if (!Array.isArray(matches)) {
+  console.log("NO MATCHES ARRAY");
+  return;
+}
 
+if (matches.length === 0) {
+  console.log("MATCHES EMPTY");
+  return;
+}
+
+const lastMatchId = matches[0]?.id;
+
+if (!lastMatchId) {
+  console.log("NO MATCH ID");
+  return;
+}
 // анти-дубль
 if (db[player].lastMatchId === lastMatchId) return;
 
 // 3. матч
-const matchRes = await axios.get(...);
+const matchRes = await axios.get(
+  `${PUBG_API}/matches/${lastMatchId}`,
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+      Accept: "application/vnd.api+json"
+    }
+  }
+);
 
 // 4. stats
 const participants = (matchRes.data?.included ?? []).filter(
@@ -613,8 +634,13 @@ db[player] = {
       files: [{ attachment: buffer, name: "match.png" }]
     });
 
-  } catch (e) {
-    console.log("MATCH ERROR:", e.message);
+} catch (e) {
+  console.error("MATCH ERROR FULL:");
+  console.error(e);
+
+  if (e.response) {
+    console.error("API RESPONSE:", e.response.data);
   }
+}
 }, 60000);
 client.login(process.env.DISCORD_TOKEN);
