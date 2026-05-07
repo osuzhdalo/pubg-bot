@@ -212,7 +212,7 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       // PLAYER
-     const playerRes = await axios.get(
+    const playerRes = await axios.get(
   `${PUBG_API}/players?filter[playerNames]=${player}`,
   {
     headers: {
@@ -519,109 +519,109 @@ setInterval(async () => {
     const channel = await client.channels.fetch(MATCH_CHANNEL_ID);
     if (!channel) return;
 
-const db = loadDB();
-const player = "osuzhdalo";
+    const db = loadDB();
+    const player = "osuzhdalo";
 
-// INIT
-db[player] ??= {
-  kills: 0,
-  assists: 0,
-  damage: 0,
-  lastMatchId: null,
-  bestKills: 0
-};
+    // INIT
+    db[player] ??= {
+      kills: 0,
+      assists: 0,
+      damage: 0,
+      lastMatchId: null,
+      bestKills: 0
+    };
 
-// 1. получаем playerId
-const playerRes = await axios.get(...);
+    // PLAYER
+    const playerRes = await axios.get(
+      `${PUBG_API}/players?filter[playerNames]=${player}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+          Accept: "application/vnd.api+json"
+        }
+      }
+    );
 
-// 2. matches
-if (!playerRes.data?.data?.length) return;
-
-const playerData = playerRes.data.data[0];
-
-const matches = playerData?.relationships?.matches?.data;
-
-if (!Array.isArray(matches)) {
- console.log("STEP 1");
-const playerRes = await axios.get(...);
-
-console.log("STEP 2");
-const matches = playerRes.data.data[0].relationships.matches.data;
-
-console.log("STEP 3");
-const lastMatchId = matches[0].id;
-
-console.log("STEP 4");
-const matchRes = await axios.get(...);
-
-console.log("STEP 5");
-// анти-дубль
-if (db[player].lastMatchId === lastMatchId) return;
-
-// 3. матч
-const matchRes = await axios.get(
-  `${PUBG_API}/matches/${lastMatchId}`,
-  {
-    headers: {
-      Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-      Accept: "application/vnd.api+json"
-    }
-  }
-);
-
-// 4. stats
-const participants = (matchRes.data?.included ?? []).filter(
-  x => x.type === "participant"
-);
-
-const me = participants.find(p =>
-  p?.attributes?.stats?.name?.toLowerCase() === player.toLowerCase()
-);
-
-if (!me?.attributes?.stats) return;
-
-const s = me.attributes.stats;
-
-
-const s = me.attributes.stats;
-const stats = {
-  name: player,
-  kills: s.kills,
-  assists: s.assists,
-  damage: s.damageDealt,
-  rank: "PUBG MATCH",
-  win: s.winPlace === 1
-};
-
-// 5. type
-let type = null;
-
-const isRecord = stats.kills > (db[player].bestKills || 0);
-const isWin = stats.win;
-
-if (isRecord) type = "record";
-else if (isWin) type = "win";
-
-    if (!type) {
-      // всё равно сохраняем матч, чтобы не ловить дубли
-      db[player].lastMatchId = lastMatchId;
-      saveDB(db);
+    if (!playerRes.data?.data?.length) {
+      console.log("Игрок не найден");
       return;
     }
 
-    // 7. обновление базы
-db[player] = {
-  ...db[player],
-  kills: stats.kills,
-  assists: stats.assists,
-  damage: stats.damage,
-  lastMatchId: lastMatchId,
-  bestKills: Math.max(db[player].bestKills || 0, stats.kills)
-};
+    const playerData = playerRes.data.data[0];
+
+    const matches = playerData?.relationships?.matches?.data;
+
+    if (!Array.isArray(matches) || matches.length === 0) {
+      console.log("Нет матчей");
+      return;
+    }
+
+    const lastMatchId = matches[0].id;
+
+    // анти-дубль
+    if (db[player].lastMatchId === lastMatchId) {
+      return;
+    }
+
+    // MATCH
+    const matchRes = await axios.get(
+      `${PUBG_API}/matches/${lastMatchId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+          Accept: "application/vnd.api+json"
+        }
+      }
+    );
+
+    // participants
+    const participants = (matchRes.data?.included ?? []).filter(
+      x => x.type === "participant"
+    );
+
+    const me = participants.find(
+      p =>
+        p?.attributes?.stats?.name?.toLowerCase() ===
+        player.toLowerCase()
+    );
+
+    if (!me?.attributes?.stats) {
+      console.log("Статы не найдены");
+      return;
+    }
+
+    const s = me.attributes.stats;
+
+    const stats = {
+      name: player,
+      kills: s.kills || 0,
+      assists: s.assists || 0,
+      damage: Math.round(s.damageDealt || 0),
+      rank: "PUBG MATCH",
+      win: s.winPlace === 1
+    };
+
+    // TYPE
+    let type = null;
+
+    const isRecord = stats.kills > (db[player].bestKills || 0);
+    const isWin = stats.win;
+
+    if (isRecord) type = "record";
+    else if (isWin) type = "win";
+
+    // сохраняем матч
+    db[player].lastMatchId = lastMatchId;
+
+    if (isRecord) {
+      db[player].bestKills = stats.kills;
+    }
 
     saveDB(db);
 
-    // 8. картинка
+    if (!type) return;
+
+    // картинка
     const buffer = await createMatchCard(stats, type);
 
     await channel.send({
@@ -632,18 +632,16 @@ db[player] = {
       files: [{ attachment: buffer, name: "match.png" }]
     });
 
-} catch (e) {
+  } catch (e) {
+    console.log("========== MATCH ERROR ==========");
+    console.log(e);
 
-  console.log("========== MATCH ERROR ==========");
+    if (e.response) {
+      console.log("STATUS:", e.response.status);
+      console.log("DATA:", e.response.data);
+    }
 
-  console.log(e);
-
-  if (e.response) {
-    console.log("STATUS:", e.response.status);
-    console.log("DATA:", e.response.data);
+    console.log("================================");
   }
-
-  console.log("================================");
-}
 }, 60000);
 client.login(process.env.DISCORD_TOKEN);
