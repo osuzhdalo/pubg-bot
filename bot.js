@@ -1,22 +1,4 @@
 require('dotenv').config();
-const fs = require('fs');
-let createCanvas = null;
-
-try {
-  ({ createCanvas } = require('canvas'));
-} catch {
-  console.log("Canvas не установлен — картинки отключены");
-}
-const MATCH_DB = "./match_db.json";
-
-function loadDB() {
-  if (!fs.existsSync(MATCH_DB)) return {};
-  return JSON.parse(fs.readFileSync(MATCH_DB));
-}
-
-function saveDB(data) {
-  fs.writeFileSync(MATCH_DB, JSON.stringify(data, null, 2));
-}
 
 const {
   Client,
@@ -39,7 +21,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages
   ]
 });
-const MATCH_CHANNEL_ID = "1502042041994182816";
+
 const PUBG_API = "https://api.pubg.com/shards/steam";
 // ===== ВХОД (REGISTERED) =====
 client.on('guildMemberAdd', async (member) => {
@@ -140,99 +122,6 @@ const ALL_ROLES = [
   "Master","Grandmaster"
 ];
 
-async function createMatchCard(data, type) {
-  if (!createCanvas) return null;
-
-  // фон
-  ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
-  ctx.fillRect(0, 0, 1200, 600);
-
-  // заголовок
-  ctx.fillStyle = type === "win" ? "#FFD700" : "#B026FF";
-  ctx.font = "bold 40px Arial";
-
-  const title =
-    type === "win"
-      ? "WINNER WINNER CHICKEN DINNER"
-      : "NEW KILL RECORD";
-
-  ctx.fillText(title, 50, 80);
-
-  // текст
-  ctx.fillStyle = "#fff";
-  ctx.font = "30px Arial";
-
-  ctx.fillText(`Player: ${data.name}`, 50, 180);
-  ctx.fillText(`Kills: ${data.kills}`, 50, 240);
-  ctx.fillText(`Assists: ${data.assists}`, 50, 300);
-  ctx.fillText(`Damage: ${data.damage}`, 50, 360);
-
-  if (data.rank) {
-    ctx.fillText(`Rank: ${data.rank}`, 50, 420);
-  }
-
-  return canvas.toBuffer("image/png");
-}
-
-  return canvas.toBuffer();
-}
-  if (!createCanvas) return null;
-
-  const canvas = createCanvas(1200, 600);
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
-  ctx.fillRect(0, 0, 1200, 600);
-
-  ctx.fillStyle = type === "win" ? "#FFD700" : "#B026FF";
-  ctx.font = "bold 40px Arial";
-
-  const title =
-    type === "win"
-      ? "WINNER WINNER CHICKEN DINNER"
-      : "NEW KILL RECORD";
-
-  ctx.fillText(title, 50, 80);
-
-  ctx.fillStyle = "#fff";
-  ctx.font = "30px Arial";
-
-  ctx.fillText(`Player: ${data.name}`, 50, 180);
-  ctx.fillText(`Kills: ${data.kills}`, 50, 240);
-  ctx.fillText(`Assists: ${data.assists}`, 50, 300);
-  ctx.fillText(`Damage: ${data.damage}`, 50, 360);
-
-  return canvas.toBuffer();
-}
-  // фон
-  ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
-  ctx.fillRect(0, 0, 1200, 600);
-
-  // заголовок
-  ctx.fillStyle = type === "win" ? "#FFD700" : "#B026FF";
-  ctx.font = "bold 40px Arial";
-
-  const title =
-    type === "win"
-      ? "WINNER WINNER CHICKEN DINNER"
-      : "NEW KILL RECORD";
-
-  ctx.fillText(title, 50, 80);
-
-  // ник
-  ctx.fillStyle = "#fff";
-  ctx.font = "30px Arial";
-  ctx.fillText(`Player: ${data.name}`, 50, 180);
-
-  ctx.fillText(`Kills: ${data.kills}`, 50, 240);
-  ctx.fillText(`Assists: ${data.assists}`, 50, 300);
-  ctx.fillText(`Damage: ${data.damage}`, 50, 360);
-
-  ctx.fillText(`Rank: ${data.rank}`, 50, 420);
-
-  return canvas.toBuffer();
-}
-
 client.once('ready', async () => {
   console.log(`Бот запущен как ${client.user.tag}`);
 
@@ -278,15 +167,15 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       // PLAYER
-    const playerRes = await axios.get(
-  `${PUBG_API}/players?filter[playerNames]=${nickname}`,
-  {
-    headers: {
-      Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-      Accept: "application/vnd.api+json"
-    }
-  }
-);
+      const playerRes = await axios.get(
+        `${PUBG_API}/players?filter[playerNames]=${nickname}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+            Accept: 'application/vnd.api+json'
+          }
+        }
+      );
 
       if (!playerRes.data.data.length) {
         return interaction.editReply("❌ Игрок не найден");
@@ -555,6 +444,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     console.log("VOICE ERROR:", err);
   }
 });
+client.on('guildMemberAdd', async (member) => {
+  const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
 
   if (role) {
     try {
@@ -578,141 +469,4 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     console.log("Не вдалося надіслати ЛС");
   }
 }); // ← ВОТ ЭТА СКОБКА ОЧЕНЬ ВАЖНА
-setInterval(async () => {
-  try {
-    const channel = await client.channels.fetch(MATCH_CHANNEL_ID);
-    if (!channel) return;
-
-    const db = loadDB();
-    const player = "osuzhdalo";
-
-    // INIT
-    db[player] ??= {
-      kills: 0,
-      assists: 0,
-      damage: 0,
-      lastMatchId: null,
-      bestKills: 0
-    };
-
-    // PLAYER
-    const playerRes = await axios.get(
-      `${PUBG_API}/players?filter[playerNames]=${player}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-          Accept: "application/vnd.api+json"
-        }
-      }
-    );
-
-    if (!playerRes.data?.data?.length) {
-      console.log("Игрок не найден");
-      return;
-    }
-
-    const playerData = playerRes.data.data[0];
-
-    const matches = playerData?.relationships?.matches?.data;
-
-    if (!Array.isArray(matches) || matches.length === 0) {
-      console.log("Нет матчей");
-      return;
-    }
-
-    const lastMatchId = matches[0].id;
-
-    // анти-дубль
-    if (db[player].lastMatchId === lastMatchId) {
-      return;
-    }
-
-    // MATCH
-    const matchRes = await axios.get(
-      `${PUBG_API}/matches/${lastMatchId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-          Accept: "application/vnd.api+json"
-        }
-      }
-    );
-
-    // participants
-    const participants = (matchRes.data?.included ?? []).filter(
-      x => x.type === "participant"
-    );
-
-    const me = participants.find(
-      p =>
-        p?.attributes?.stats?.name?.toLowerCase() ===
-        player.toLowerCase()
-    );
-
-    if (!me?.attributes?.stats) {
-      console.log("Статы не найдены");
-      return;
-    }
-
-    const s = me.attributes.stats;
-
-    const stats = {
-      name: player,
-      kills: s.kills || 0,
-      assists: s.assists || 0,
-      damage: Math.round(s.damageDealt || 0),
-      rank: "PUBG MATCH",
-      win: s.winPlace === 1
-    };
-
-    // TYPE
-    let type = null;
-
-    const isRecord = stats.kills > (db[player].bestKills || 0);
-    const isWin = stats.win;
-
-    if (isRecord) type = "record";
-    else if (isWin) type = "win";
-
-    // сохраняем матч
-    db[player].lastMatchId = lastMatchId;
-
-    if (isRecord) {
-      db[player].bestKills = stats.kills;
-    }
-
-    saveDB(db);
-
-    if (!type) return;
-
-    // картинка
-   const buffer = await createMatchCard(stats, type);
-
-if (buffer) {
-  await channel.send({
-    content:
-      type === "win"
-        ? `🏆 ${player} WON THE MATCH!`
-        : `🔥 NEW KILL RECORD: ${stats.kills}`,
-    files: [{ attachment: buffer, name: "match.png" }]
-  });
-} else {
-  await channel.send(
-    type === "win"
-      ? `🏆 ${player} WON THE MATCH!`
-      : `🔥 NEW KILL RECORD: ${stats.kills}`
-  );
-}
-  } catch (e) {
-    console.log("========== MATCH ERROR ==========");
-    console.log(e);
-
-    if (e.response) {
-      console.log("STATUS:", e.response.status);
-      console.log("DATA:", e.response.data);
-    }
-
-    console.log("================================");
-  }
-}, 60000);
 client.login(process.env.DISCORD_TOKEN);
