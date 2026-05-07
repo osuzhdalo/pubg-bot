@@ -542,21 +542,19 @@ const playerData = playerRes.data.data[0];
 const matches = playerData?.relationships?.matches?.data;
 
 if (!Array.isArray(matches)) {
-  console.log("NO MATCHES ARRAY");
-  return;
-}
+ console.log("STEP 1");
+const playerRes = await axios.get(...);
 
-if (matches.length === 0) {
-  console.log("MATCHES EMPTY");
-  return;
-}
+console.log("STEP 2");
+const matches = playerRes.data.data[0].relationships.matches.data;
 
-const lastMatchId = matches[0]?.id;
+console.log("STEP 3");
+const lastMatchId = matches[0].id;
 
-if (!lastMatchId) {
-  console.log("NO MATCH ID");
-  return;
-}
+console.log("STEP 4");
+const matchRes = await axios.get(...);
+
+console.log("STEP 5");
 // анти-дубль
 if (db[player].lastMatchId === lastMatchId) return;
 
@@ -635,12 +633,17 @@ db[player] = {
     });
 
 } catch (e) {
-  console.error("MATCH ERROR FULL:");
-  console.error(e);
+
+  console.log("========== MATCH ERROR ==========");
+
+  console.log(e);
 
   if (e.response) {
-    console.error("API RESPONSE:", e.response.data);
+    console.log("STATUS:", e.response.status);
+    console.log("DATA:", e.response.data);
   }
+
+  console.log("================================");
 }
 }, 60000);
 client.login(process.env.DISCORD_TOKEN);
