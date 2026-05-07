@@ -290,15 +290,35 @@ subTier = rankedFpp.currentTier?.subTier || "";
       }
 
       // ВЫДАЧА
-      await give(getRankRoleName(tier, subTier));
-      await give(getFppAdrRole(fppAdr));
-      await give(getRankedAdrRole(rankedAdr));
-      await give(getTppAdrRole(tppRankedAdr));
-      await give(getRankedDuoAdrRole(duoAdr));
-      await give(getFppKdRole(fppKd));
-      await give(getRankedKdRole(rankedKd));
-      await give(getRankedDuoKdRole(duoKd));
+     await give(getRankRoleName(tier, subTier));
 
+if (fppGames > 0) {
+  await give(getFppAdrRole(fppAdr));
+}
+
+if (rankedGames > 0) {
+  await give(getRankedAdrRole(rankedAdr));
+}
+
+if (tppRankedGames > 0) {
+  await give(getTppAdrRole(tppRankedAdr));
+}
+
+if (duoGames > 0) {
+  await give(getRankedDuoAdrRole(duoAdr));
+}
+
+if (fppGames > 0) {
+  await give(getFppKdRole(fppKd));
+}
+
+if (rankedGames > 0) {
+  await give(getRankedKdRole(rankedKd));
+}
+
+if (duoGames > 0) {
+  await give(getRankedDuoKdRole(duoKd));
+}
       // EMBED
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
