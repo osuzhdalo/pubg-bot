@@ -1,6 +1,12 @@
 require('dotenv').config();
 const fs = require('fs');
-const { createCanvas } = require('canvas');
+let createCanvas = null;
+
+try {
+  ({ createCanvas } = require('canvas'));
+} catch {
+  console.log("Canvas не установлен — картинки отключены");
+}
 const MATCH_DB = "./match_db.json";
 
 function loadDB() {
@@ -135,6 +141,62 @@ const ALL_ROLES = [
 ];
 
 async function createMatchCard(data, type) {
+  if (!createCanvas) return null;
+
+  const canvas = createCanvas(1200, 600);
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
+  ctx.fillRect(0, 0, 1200, 600);
+
+  ctx.fillStyle = type === "win" ? "#FFD700" : "#B026FF";
+  ctx.font = "bold 40px Arial";
+
+  const title =
+    type === "win"
+      ? "WINNER WINNER CHICKEN DINNER"
+      : "NEW KILL RECORD";
+
+  ctx.fillText(title, 50, 80);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "30px Arial";
+
+  ctx.fillText(`Player: ${data.name}`, 50, 180);
+  ctx.fillText(`Kills: ${data.kills}`, 50, 240);
+  ctx.fillText(`Assists: ${data.assists}`, 50, 300);
+  ctx.fillText(`Damage: ${data.damage}`, 50, 360);
+
+  return canvas.toBuffer();
+}
+  if (!createCanvas) return null;
+
+  const canvas = createCanvas(1200, 600);
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
+  ctx.fillRect(0, 0, 1200, 600);
+
+  ctx.fillStyle = type === "win" ? "#FFD700" : "#B026FF";
+  ctx.font = "bold 40px Arial";
+
+  const title =
+    type === "win"
+      ? "WINNER WINNER CHICKEN DINNER"
+      : "NEW KILL RECORD";
+
+  ctx.fillText(title, 50, 80);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "30px Arial";
+
+  ctx.fillText(`Player: ${data.name}`, 50, 180);
+  ctx.fillText(`Kills: ${data.kills}`, 50, 240);
+  ctx.fillText(`Assists: ${data.assists}`, 50, 300);
+  ctx.fillText(`Damage: ${data.damage}`, 50, 360);
+
+  return canvas.toBuffer();
+}
   const canvas = createCanvas(1200, 600);
   const ctx = canvas.getContext('2d');
 
@@ -213,7 +275,7 @@ client.on('interactionCreate', async (interaction) => {
 
       // PLAYER
     const playerRes = await axios.get(
-  `${PUBG_API}/players?filter[playerNames]=${player}`,
+  `${PUBG_API}/players?filter[playerNames]=${nickname}`,
   {
     headers: {
       Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
@@ -489,8 +551,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     console.log("VOICE ERROR:", err);
   }
 });
-client.on('guildMemberAdd', async (member) => {
-  const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
 
   if (role) {
     try {
@@ -622,16 +682,23 @@ setInterval(async () => {
     if (!type) return;
 
     // картинка
-    const buffer = await createMatchCard(stats, type);
+   const buffer = await createMatchCard(stats, type);
 
-    await channel.send({
-      content:
-        type === "win"
-          ? `🏆 ${player} WON THE MATCH!`
-          : `🔥 NEW KILL RECORD: ${stats.kills}`,
-      files: [{ attachment: buffer, name: "match.png" }]
-    });
-
+if (buffer) {
+  await channel.send({
+    content:
+      type === "win"
+        ? `🏆 ${player} WON THE MATCH!`
+        : `🔥 NEW KILL RECORD: ${stats.kills}`,
+    files: [{ attachment: buffer, name: "match.png" }]
+  });
+} else {
+  await channel.send(
+    type === "win"
+      ? `🏆 ${player} WON THE MATCH!`
+      : `🔥 NEW KILL RECORD: ${stats.kills}`
+  );
+}
   } catch (e) {
     console.log("========== MATCH ERROR ==========");
     console.log(e);
