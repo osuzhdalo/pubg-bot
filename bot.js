@@ -62,6 +62,14 @@ function getRankedDuoAdrRole(adr) {
   if (adr >= 150) return "RANKED DUO ADR 150+";
   return "RANKED DUO ADR 100+";
 }
+function getTppAdrRole(adr) {
+  if (adr >= 350) return "TPP ADR 350+";
+  if (adr >= 300) return "TPP ADR 300+";
+  if (adr >= 250) return "TPP ADR 250+";
+  if (adr >= 200) return "TPP ADR 200+";
+  if (adr >= 150) return "TPP ADR 150+";
+  return "TPP ADR 100+";
+}
 
 // ===== KD =====
 function getFppKdRole(kd) {
@@ -93,7 +101,8 @@ function getRankRoleName(tier, subTier) {
 }
 
 // ===== ВСЕ РОЛИ =====
-const ALL_ROLES = [
+  "TPP ADR 350+","TPP ADR 300+","TPP ADR 250+",
+  "TPP ADR 200+","TPP ADR 150+","TPP ADR 100+",
   "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+","FPP ADR 200+","FPP ADR 100+",
   "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+","RANKED ADR 200+","RANKED ADR 150+","RANKED ADR 100+",
 
@@ -202,6 +211,20 @@ client.on('interactionCreate', async (interaction) => {
       const fppKd = fppGames ? (normal.kills / fppGames) : 0;
 
       // RANKED
+      // ===== ONLY TPP RANKED =====
+const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
+
+const tppSquad = rankedStats['squad'] || {};
+const tppDuo = rankedStats['duo'] || {};
+
+// берем общий TPP (squad приоритет, duo запасной)
+const tppMain = tppSquad.roundsPlayed > 0 ? tppSquad : tppDuo;
+
+const tppGames = tppMain.roundsPlayed || 0;
+
+const tppAdr = tppGames
+  ? Math.round(tppMain.damageDealt / tppGames)
+  : 100;
       let ranked = {};
       let duo = {};
 
@@ -262,6 +285,7 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       // ВЫДАЧА
+      await give(getTppAdrRole(tppAdr));
       await give(getRankRoleName(tier, subTier));
       await give(getFppAdrRole(fppAdr));
       await give(getRankedAdrRole(rankedAdr));
