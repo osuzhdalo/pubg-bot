@@ -1,4 +1,16 @@
 require('dotenv').config();
+const fs = require('fs');
+
+const MATCH_DB = "./match_db.json";
+
+function loadDB() {
+  if (!fs.existsSync(MATCH_DB)) return {};
+  return JSON.parse(fs.readFileSync(MATCH_DB));
+}
+
+function saveDB(data) {
+  fs.writeFileSync(MATCH_DB, JSON.stringify(data, null, 2));
+}
 
 const {
   Client,
@@ -21,7 +33,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages
   ]
 });
-
+const MATCH_CHANNEL_ID = "1502042041994182816";
 const PUBG_API = "https://api.pubg.com/shards/steam";
 // ===== ВХОД (REGISTERED) =====
 client.on('guildMemberAdd', async (member) => {
@@ -121,6 +133,48 @@ const ALL_ROLES = [
   "Diamond 4","Diamond 3","Diamond 2","Diamond 1",
   "Master","Grandmaster"
 ];
+const MATCH_DB = "./match_db.json";
+
+function loadDB() {
+  if (!fs.existsSync(MATCH_DB)) return {};
+  return JSON.parse(fs.readFileSync(MATCH_DB));
+}
+
+function saveDB(data) {
+  fs.writeFileSync(MATCH_DB, JSON.stringify(data, null, 2));
+}
+async function createMatchCard(data, type) {
+  const canvas = createCanvas(1200, 600);
+  const ctx = canvas.getContext('2d');
+
+  // фон
+  ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
+  ctx.fillRect(0, 0, 1200, 600);
+
+  // заголовок
+  ctx.fillStyle = type === "win" ? "#FFD700" : "#B026FF";
+  ctx.font = "bold 40px Arial";
+
+  const title =
+    type === "win"
+      ? "WINNER WINNER CHICKEN DINNER"
+      : "NEW KILL RECORD";
+
+  ctx.fillText(title, 50, 80);
+
+  // ник
+  ctx.fillStyle = "#fff";
+  ctx.font = "30px Arial";
+  ctx.fillText(`Player: ${data.name}`, 50, 180);
+
+  ctx.fillText(`Kills: ${data.kills}`, 50, 240);
+  ctx.fillText(`Assists: ${data.assists}`, 50, 300);
+  ctx.fillText(`Damage: ${data.damage}`, 50, 360);
+
+  ctx.fillText(`Rank: ${data.rank}`, 50, 420);
+
+  return canvas.toBuffer();
+}
 
 client.once('ready', async () => {
   console.log(`Бот запущен как ${client.user.tag}`);
@@ -469,4 +523,52 @@ client.on('guildMemberAdd', async (member) => {
     console.log("Не вдалося надіслати ЛС");
   }
 }); // ← ВОТ ЭТА СКОБКА ОЧЕНЬ ВАЖНА
+setInterval(async () => {
+  try {
+    const channel = await client.channels.fetch(MATCH_CHANNEL_ID);
+    if (!channel) return;
+
+    const db = loadDB();
+
+    // 🔴 ВРЕМЕННЫЕ ДАННЫЕ (потом заменим на PUBG API)
+    const player = "osuzhdalo";
+
+    const stats = {
+      name: player,
+      kills: Math.floor(Math.random() * 30),
+      assists: Math.floor(Math.random() * 10),
+      damage: Math.floor(Math.random() * 3000),
+      rank: "Diamond 1",
+      win: Math.random() > 0.7
+    };
+
+    const prev = db[player] || { kills: 0 };
+
+    let type = null;
+
+    // 🏆 WIN
+    if (stats.win) type = "win";
+
+    // 🔥 KILL RECORD
+    if (stats.kills > prev.kills) type = "record";
+
+    if (!type) return;
+
+    db[player] = stats;
+    saveDB(db);
+
+    const buffer = await createMatchCard(stats, type);
+
+    await channel.send({
+      content:
+        type === "win"
+          ? `🏆 ${player} WON THE MATCH!`
+          : `🔥 NEW KILL RECORD: ${stats.kills}`,
+      files: [{ attachment: buffer, name: "match.png" }]
+    });
+
+  } catch (e) {
+    console.log("MATCH ERROR:", e.message);
+  }
+}, 60000);
 client.login(process.env.DISCORD_TOKEN);
