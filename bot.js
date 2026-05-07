@@ -133,7 +133,6 @@ const ALL_ROLES = [
   "Diamond 4","Diamond 3","Diamond 2","Diamond 1",
   "Master","Grandmaster"
 ];
-const MATCH_DB = "./match_db.json";
 
 function loadDB() {
   if (!fs.existsSync(MATCH_DB)) return {};
