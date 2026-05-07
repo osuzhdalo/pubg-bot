@@ -35,18 +35,69 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
+// ===== ADR =====
+function getFppAdrRole(adr) {
+  if (adr >= 350) return "FPP ADR 350+";
+  if (adr >= 300) return "FPP ADR 300+";
+  if (adr >= 250) return "FPP ADR 250+";
+  if (adr >= 200) return "FPP ADR 200+";
+  if (adr >= 150) return "FPP ADR 150+";
+  return "FPP ADR 100+";
+}
+
+function getRankedAdrRole(adr) {
+  if (adr >= 350) return "RANKED ADR 350+";
+  if (adr >= 300) return "RANKED ADR 300+";
+  if (adr >= 250) return "RANKED ADR 250+";
+  if (adr >= 200) return "RANKED ADR 200+";
+  if (adr >= 150) return "RANKED ADR 150+";
+  return "RANKED ADR 100+";
+}
+
+function getRankedDuoAdrRole(adr) {
+  if (adr >= 350) return "RANKED DUO ADR 350+";
+  if (adr >= 300) return "RANKED DUO ADR 300+";
+  if (adr >= 250) return "RANKED DUO ADR 250+";
+  if (adr >= 200) return "RANKED DUO ADR 200+";
+  if (adr >= 150) return "RANKED DUO ADR 150+";
+  return "RANKED DUO ADR 100+";
+}
+
+// ===== KD =====
+function getFppKdRole(kd) {
+  if (kd >= 2) return "FPP KD 2+";
+  if (kd >= 1.5) return "FPP KD 1.5+";
+  if (kd >= 1) return "FPP KD 1+";
+  return null;
+}
+
+function getRankedKdRole(kd) {
+  if (kd >= 2) return "RANKED KD 2+";
+  if (kd >= 1.5) return "RANKED KD 1.5+";
+  if (kd >= 1) return "RANKED KD 1+";
+  return null;
+}
+
+function getRankedDuoKdRole(kd) {
+  if (kd >= 2) return "RANKED DUO KD 2+";
+  if (kd >= 1.5) return "RANKED DUO KD 1.5+";
+  if (kd >= 1) return "RANKED DUO KD 1+";
+  return null;
+}
+
+// ===== RANK =====
+function getRankRoleName(tier, subTier) {
+  if (!tier || !subTier) return null;
+  const formatted = tier.charAt(0) + tier.slice(1).toLowerCase();
+  return `${formatted} ${subTier}`;
+}
+
+// ===== ВСЕ РОЛИ =====
 const ALL_ROLES = [
-  "TPP ADR 350+","TPP ADR 300+","TPP ADR 250+",
-  "TPP ADR 200+","TPP ADR 150+","TPP ADR 100+",
+  "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+","FPP ADR 200+","FPP ADR 100+",
+  "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+","RANKED ADR 200+","RANKED ADR 150+","RANKED ADR 100+",
 
-  "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+",
-  "FPP ADR 200+","FPP ADR 150+","FPP ADR 100+",
-
-  "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+",
-  "RANKED ADR 200+","RANKED ADR 150+","RANKED ADR 100+",
-
-  "RANKED DUO ADR 350+","RANKED DUO ADR 300+","RANKED DUO ADR 250+",
-  "RANKED DUO ADR 200+","RANKED DUO ADR 150+","RANKED DUO ADR 100+",
+  "RANKED DUO ADR 350+","RANKED DUO ADR 300+","RANKED DUO ADR 250+","RANKED DUO ADR 200+","RANKED DUO ADR 100+",
 
   "FPP KD 2+","FPP KD 1.5+","FPP KD 1+",
   "RANKED KD 2+","RANKED KD 1.5+","RANKED KD 1+",
@@ -151,21 +202,11 @@ client.on('interactionCreate', async (interaction) => {
       const fppKd = fppGames ? (normal.kills / fppGames) : 0;
 
       // RANKED
-
-// берем общий TPP (squad приоритет, duo запасной)
-const tppSquad = rankedStats['squad'] || {};
-
-const tppGames = tppSquad.roundsPlayed || 0;
-
-const tppAdr = tppGames
-  ? Math.round(tppSquad.damageDealt / tppGames)
-  : 100;
       let ranked = {};
       let duo = {};
 
       let rankedGames = 0, rankedAdr = 0, rankedKd = 0;
-      let duoGames = 0, duoAdr = 0, duoKd = 0; let tppAdr = 100;
-      let tppGames = 0;
+      let duoGames = 0, duoAdr = 0, duoKd = 0;
 
       let tier = "UNRANKED", subTier = "", rp = 0;
 
@@ -181,17 +222,16 @@ const tppAdr = tppGames
         );
 
         const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
-        const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
+        const rankedTpp = rankedStats['squad'] || {};
+const normalTpp = stats['squad'] || {};
 
-const tppSquad = rankedStats['squad'] || {};
-const tppDuo = rankedStats['duo'] || {};
+const tppSource =
+  (rankedTpp.roundsPlayed || 0) > 0 ? rankedTpp : normalTpp;
 
-const tppMain = (tppSquad.roundsPlayed || 0) > 0 ? tppSquad : tppDuo;
+const tppGames = tppSource.roundsPlayed || 0;
 
-tppGames = tppMain.roundsPlayed || 0;
-
-tppAdr = tppGames
-  ? Math.round(tppMain.damageDealt / tppGames)
+const tppAdr = tppGames
+  ? Math.round(tppSource.damageDealt / tppGames)
   : 100;
 
         ranked = rankedStats['squad'] || rankedStats['squad-fpp'] || {};
@@ -233,7 +273,6 @@ tppAdr = tppGames
       }
 
       // ВЫДАЧА
-      await give(getTppAdrRole(tppAdr));
       await give(getRankRoleName(tier, subTier));
       await give(getFppAdrRole(fppAdr));
       await give(getRankedAdrRole(rankedAdr));
@@ -265,6 +304,7 @@ tppAdr = tppGames
           `🎮 Games: ${duoGames}\n` +
           `💥 ADR: ${duoAdr}\n` +
           `🔫 KD: ${duoKd.toFixed(2)}\n\n` +
+          `🟡 TPP ADR: ${tppAdr}\n\n` +
 
           `🟢 Роли: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
         );
