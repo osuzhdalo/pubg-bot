@@ -146,9 +146,11 @@ async function createMatchCard(data, type) {
   const canvas = createCanvas(1200, 600);
   const ctx = canvas.getContext('2d');
 
+  // фон
   ctx.fillStyle = type === "win" ? "#0d0d0d" : "#120018";
   ctx.fillRect(0, 0, 1200, 600);
 
+  // заголовок
   ctx.fillStyle = type === "win" ? "#FFD700" : "#B026FF";
   ctx.font = "bold 40px Arial";
 
@@ -159,6 +161,7 @@ async function createMatchCard(data, type) {
 
   ctx.fillText(title, 50, 80);
 
+  // текст
   ctx.fillStyle = "#fff";
   ctx.font = "30px Arial";
 
@@ -166,6 +169,13 @@ async function createMatchCard(data, type) {
   ctx.fillText(`Kills: ${data.kills}`, 50, 240);
   ctx.fillText(`Assists: ${data.assists}`, 50, 300);
   ctx.fillText(`Damage: ${data.damage}`, 50, 360);
+
+  if (data.rank) {
+    ctx.fillText(`Rank: ${data.rank}`, 50, 420);
+  }
+
+  return canvas.toBuffer("image/png");
+}
 
   return canvas.toBuffer();
 }
