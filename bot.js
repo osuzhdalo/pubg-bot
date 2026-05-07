@@ -220,16 +220,22 @@ client.on('interactionCreate', async (interaction) => {
           }
         );
 
-        const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
-        const rankedTpp = rankedStats['squad'] || {};
-const normalTpp = stats['squad'] || {};
+       let tppAdr = 100;
+let tppGames = 0;
 
+const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats || {};
+
+// TPP RANKED ONLY
+const tppRanked = rankedStats['squad'] || {};
+const tppNormal = stats['squad'] || {};
+
+// PRIORITY: ranked → normal
 const tppSource =
-  (rankedTpp.roundsPlayed || 0) > 0 ? rankedTpp : normalTpp;
+  (tppRanked.roundsPlayed || 0) > 0 ? tppRanked : tppNormal;
 
-const tppGames = tppSource.roundsPlayed || 0;
+tppGames = tppSource.roundsPlayed || 0;
 
-const tppAdr = tppGames
+tppAdr = tppGames
   ? Math.round(tppSource.damageDealt / tppGames)
   : 100;
 
@@ -273,7 +279,9 @@ const tppAdr = tppGames
 
       // ВЫДАЧА
       await give(getRankRoleName(tier, subTier));
-      await give(getFppAdrRole(fppAdr));
+      if (typeof fppAdr === "number") {
+  await give(getFppAdrRole(fppAdr));
+}
       await give(getRankedAdrRole(rankedAdr));
       await give(getRankedDuoAdrRole(duoAdr));
       await give(getFppKdRole(fppKd));
