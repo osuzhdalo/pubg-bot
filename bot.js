@@ -62,6 +62,15 @@ function getRankedDuoAdrRole(adr) {
   if (adr >= 150) return "RANKED DUO ADR 150+";
   return "RANKED DUO ADR 100+";
 }
+// ===== TPP ADR =====
+function getTppAdrRole(adr) {
+  if (adr >= 350) return "TPP ADR 350+";
+  if (adr >= 300) return "TPP ADR 300+";
+  if (adr >= 250) return "TPP ADR 250+";
+  if (adr >= 200) return "TPP ADR 200+";
+  if (adr >= 150) return "TPP ADR 150+";
+  return "TPP ADR 100+";
+}
 
 // ===== KD =====
 function getFppKdRole(kd) {
@@ -96,6 +105,7 @@ function getRankRoleName(tier, subTier) {
 const ALL_ROLES = [
   "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+","FPP ADR 200+","FPP ADR 100+",
   "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+","RANKED ADR 200+","RANKED ADR 150+","RANKED ADR 100+",
+  "TPP ADR 350+","TPP ADR 300+","TPP ADR 250+","TPP ADR 200+","TPP ADR 150+","TPP ADR 100+",
 
   "RANKED DUO ADR 350+","RANKED DUO ADR 300+","RANKED DUO ADR 250+","RANKED DUO ADR 200+","RANKED DUO ADR 100+",
 
@@ -195,11 +205,15 @@ client.on('interactionCreate', async (interaction) => {
       );
 
       const stats = normalRes.data.data.attributes.gameModeStats;
-      const normal = stats['squad-fpp'] || stats['squad'] || {};
+      const normalFpp = stats['squad-fpp'] || {};
+const normalTpp = stats['squad'] || {};
 
-      const fppGames = normal.roundsPlayed || 0;
-      const fppAdr = fppGames ? Math.round(normal.damageDealt / fppGames) : 0;
-      const fppKd = fppGames ? (normal.kills / fppGames) : 0;
+      const fppGames = normalFpp.roundsPlayed || 0;
+const fppAdr = fppGames ? Math.round(normalFpp.damageDealt / fppGames) : 0;
+const fppKd = fppGames ? (normalFpp.kills / fppGames) : 0;
+
+const tppGames = normalTpp.roundsPlayed || 0;
+const tppAdr = tppGames ? Math.round(normalTpp.damageDealt / tppGames) : 0;
 
       // RANKED
       let ranked = {};
@@ -223,20 +237,32 @@ client.on('interactionCreate', async (interaction) => {
 
         const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats;
 
-        ranked = rankedStats['squad'] || rankedStats['squad-fpp'] || {};
+        const rankedFpp = rankedStats['squad-fpp'] || {};
+const rankedTpp = rankedStats['squad'] || {};
         duo = rankedStats['duo'] || rankedStats['duo-fpp'] || {};
 
-        rankedGames = ranked.roundsPlayed || 0;
-        rankedAdr = rankedGames ? Math.round(ranked.damageDealt / rankedGames) : 0;
-        rankedKd = rankedGames ? (ranked.kills / rankedGames) : 0;
+        rankedGames = rankedFpp.roundsPlayed || 0;
+rankedAdr = rankedGames ? Math.round(rankedFpp.damageDealt / rankedGames) : 0;
+rankedKd = rankedGames ? (rankedFpp.kills / rankedGames) : 0;
 
         duoGames = duo.roundsPlayed || 0;
         duoAdr = duoGames ? Math.round(duo.damageDealt / duoGames) : 0;
         duoKd = duoGames ? (duo.kills / duoGames) : 0;
+        let tppRankedGames = rankedTpp.roundsPlayed || 0;
+let tppRankedAdr = 0;
 
-        rp = ranked.currentRankPoint || 0;
-        tier = ranked.currentTier?.tier || "UNRANKED";
-        subTier = ranked.currentTier?.subTier || "";
+// если ranked TPP есть
+if (tppRankedGames > 0) {
+  tppRankedAdr = Math.round(rankedTpp.damageDealt / tppRankedGames);
+} else {
+  // если ranked TPP нет → берем обычный TPP squad
+  tppRankedGames = tppGames;
+  tppRankedAdr = tppAdr;
+}
+
+        rp = rankedFpp.currentRankPoint || 0;
+tier = rankedFpp.currentTier?.tier || "UNRANKED";
+subTier = rankedFpp.currentTier?.subTier || "";
 
       } catch {}
 
@@ -265,6 +291,7 @@ client.on('interactionCreate', async (interaction) => {
       await give(getRankRoleName(tier, subTier));
       await give(getFppAdrRole(fppAdr));
       await give(getRankedAdrRole(rankedAdr));
+      await give(getTppAdrRole(tppRankedAdr));
       await give(getRankedDuoAdrRole(duoAdr));
       await give(getFppKdRole(fppKd));
       await give(getRankedKdRole(rankedKd));
@@ -293,6 +320,10 @@ client.on('interactionCreate', async (interaction) => {
           `🎮 Games: ${duoGames}\n` +
           `💥 ADR: ${duoAdr}\n` +
           `🔫 KD: ${duoKd.toFixed(2)}\n\n` +
+          
+          `🟠 TPP SQUAD\n` +
+          `🎮 Games: ${tppRankedGames}\n` +
+          `💥 ADR: ${tppRankedAdr}\n\n` +
 
           `🟢 Роли: ${givenRoles.length ? givenRoles.join(', ') : 'нет'}`
         );
