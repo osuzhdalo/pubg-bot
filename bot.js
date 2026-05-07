@@ -1,6 +1,6 @@
 require('dotenv').config();
 const fs = require('fs');
-
+const { createCanvas } = require('canvas');
 const MATCH_DB = "./match_db.json";
 
 function loadDB() {
@@ -134,14 +134,6 @@ const ALL_ROLES = [
   "Master","Grandmaster"
 ];
 
-function loadDB() {
-  if (!fs.existsSync(MATCH_DB)) return {};
-  return JSON.parse(fs.readFileSync(MATCH_DB));
-}
-
-function saveDB(data) {
-  fs.writeFileSync(MATCH_DB, JSON.stringify(data, null, 2));
-}
 async function createMatchCard(data, type) {
   const canvas = createCanvas(1200, 600);
   const ctx = canvas.getContext('2d');
@@ -578,9 +570,9 @@ setInterval(async () => {
     );
 
     // 5. ищем игрока
-    const participants = matchRes.data.included.filter(
-      x => x.type === "participant"
-    );
+  const participants = (matchRes.data.included || []).filter(
+  x => x.type === "participant"
+);
 
     const me = participants.find(p =>
       p.attributes.stats.name.toLowerCase() === player.toLowerCase()
@@ -600,13 +592,13 @@ setInterval(async () => {
     };
 
     // 6. тип события
-   let type = null;
+const isRecord = stats.kills > (db[player].bestKills || 0);
+const isWin = stats.win;
 
-if (stats.kills > db[player].bestKills) {
-  type = "record";
-} else if (stats.win) {
-  type = "win";
-}
+let type = null;
+
+if (isRecord) type = "record";
+else if (isWin) type = "win";
 
     if (!type) {
       // всё равно сохраняем матч, чтобы не ловить дубли
