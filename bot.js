@@ -530,18 +530,60 @@ setInterval(async () => {
 
     const db = loadDB();
 
-    // 🔴 ВРЕМЕННЫЕ ДАННЫЕ (потом заменим на PUBG API)
-    const player = "osuzhdalo";
+const player = "osuzhdalo";
 
-    const stats = {
-      name: player,
-      kills: Math.floor(Math.random() * 30),
-      assists: Math.floor(Math.random() * 10),
-      damage: Math.floor(Math.random() * 3000),
-      rank: "Diamond 1",
-      win: Math.random() > 0.7
-    };
+// 1. получаем playerId
+const playerRes = await axios.get(
+  `${PUBG_API}/players?filter[playerNames]=${player}`,
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+      Accept: "application/vnd.api+json"
+    }
+  }
+);
 
+if (!playerRes.data.data.length) return;
+
+const playerId = playerRes.data.data[0].id;
+
+// 2. берём последний матч
+const matches = playerRes.data.data[0].relationships.matches.data;
+const lastMatchId = matches[0].id;
+
+// 3. получаем матч
+const matchRes = await axios.get(
+  `${PUBG_API}/matches/${lastMatchId}`,
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
+      Accept: "application/vnd.api+json"
+    }
+  }
+);
+
+// 4. ищем нашего игрока в матче
+const participants = matchRes.data.included.filter(
+  x => x.type === "participant"
+);
+
+const me = participants.find(p =>
+  p.attributes.stats.name.toLowerCase() === player.toLowerCase()
+);
+
+if (!me) return;
+
+const s = me.attributes.stats;
+
+// 5. финальные данные
+const stats = {
+  name: player,
+  kills: s.kills,
+  assists: s.assists,
+  damage: s.damageDealt,
+  rank: "PUBG MATCH",
+  win: s.winPlace === 1
+};
     const prev = db[player] || { kills: 0 };
 
     let type = null;
