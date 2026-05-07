@@ -535,9 +535,13 @@ db[player] ??= {
 const playerRes = await axios.get(...);
 
 // 2. matches
-const matches = playerRes.data.data[0].relationships.matches.data;
-if (!matches.length) return;
+if (!playerRes.data?.data?.length) return;
 
+const playerData = playerRes.data.data[0];
+
+const matches = playerData?.relationships?.matches?.data;
+
+if (!matches?.length) return;
 const lastMatchId = matches[0].id;
 
 // анти-дубль
@@ -547,18 +551,23 @@ if (db[player].lastMatchId === lastMatchId) return;
 const matchRes = await axios.get(...);
 
 // 4. stats
-const participants = (matchRes.data.included || []).filter(
+const participants = (matchRes.data?.included ?? []).filter(
+  x => x.type === "participant"
+);
+const participants = (matchRes.data?.included ?? []).filter(
   x => x.type === "participant"
 );
 
 const me = participants.find(p =>
-  p.attributes.stats.name.toLowerCase() === player.toLowerCase()
+  p?.attributes?.stats?.name?.toLowerCase() === player.toLowerCase()
 );
 
-if (!me) return;
+if (!me?.attributes?.stats) return;
 
 const s = me.attributes.stats;
 
+
+const s = me.attributes.stats;
 const stats = {
   name: player,
   kills: s.kills,
