@@ -522,7 +522,7 @@ setInterval(async () => {
 const db = loadDB();
 const player = "osuzhdalo";
 
-// 1. INIT (ВСЕГДА)
+// INIT
 db[player] ??= {
   kills: 0,
   assists: 0,
@@ -531,79 +531,48 @@ db[player] ??= {
   bestKills: 0
 };
 
-// 2. логика
-if (!type) {
-  db[player].lastMatchId = lastMatchId;
-  db[player].kills = stats.kills;
-  db[player].assists = stats.assists;
-  db[player].damage = stats.damage;
+// 1. получаем playerId
+const playerRes = await axios.get(...);
 
-  saveDB(db);
-  return;
-}
+// 2. matches
+const matches = playerRes.data.data[0].relationships.matches.data;
+if (!matches.length) return;
 
-    // 2. получаем playerId
-    const playerRes = await axios.get(
-      `${PUBG_API}/players?filter[playerNames]=${player}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-          Accept: "application/vnd.api+json"
-        }
-      }
-    );
+const lastMatchId = matches[0].id;
 
-    if (!playerRes.data.data.length) return;
+// анти-дубль
+if (db[player].lastMatchId === lastMatchId) return;
 
-    const playerId = playerRes.data.data[0].id;
+// 3. матч
+const matchRes = await axios.get(...);
 
-    // 3. берём последний матч
-    const matches = playerRes.data.data[0].relationships.matches.data;
-    if (!matches.length) return;
-
-    const lastMatchId = matches[0].id;
-
-    // ❌ анти-дубль матча
-    if (db[player].lastMatchId === lastMatchId) return;
-
-    // 4. получаем матч
-    const matchRes = await axios.get(
-      `${PUBG_API}/matches/${lastMatchId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PUBG_API_KEY}`,
-          Accept: "application/vnd.api+json"
-        }
-      }
-    );
-
-    // 5. ищем игрока
-  const participants = (matchRes.data.included || []).filter(
+// 4. stats
+const participants = (matchRes.data.included || []).filter(
   x => x.type === "participant"
 );
 
-    const me = participants.find(p =>
-      p.attributes.stats.name.toLowerCase() === player.toLowerCase()
-    );
+const me = participants.find(p =>
+  p.attributes.stats.name.toLowerCase() === player.toLowerCase()
+);
 
-    if (!me) return;
+if (!me) return;
 
-    const s = me.attributes.stats;
+const s = me.attributes.stats;
 
-    const stats = {
-      name: player,
-      kills: s.kills,
-      assists: s.assists,
-      damage: s.damageDealt,
-      rank: "PUBG MATCH",
-      win: s.winPlace === 1
-    };
+const stats = {
+  name: player,
+  kills: s.kills,
+  assists: s.assists,
+  damage: s.damageDealt,
+  rank: "PUBG MATCH",
+  win: s.winPlace === 1
+};
 
-    // 6. тип события
+// 5. type
+let type = null;
+
 const isRecord = stats.kills > (db[player].bestKills || 0);
 const isWin = stats.win;
-
-let type = null;
 
 if (isRecord) type = "record";
 else if (isWin) type = "win";
