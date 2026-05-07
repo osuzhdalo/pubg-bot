@@ -554,9 +554,6 @@ const matchRes = await axios.get(...);
 const participants = (matchRes.data?.included ?? []).filter(
   x => x.type === "participant"
 );
-const participants = (matchRes.data?.included ?? []).filter(
-  x => x.type === "participant"
-);
 
 const me = participants.find(p =>
   p?.attributes?.stats?.name?.toLowerCase() === player.toLowerCase()
