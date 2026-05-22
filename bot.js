@@ -126,26 +126,15 @@ const ALL_ROLES = [
 client.once('ready', async () => {
   console.log(`Бот запущен как ${client.user.tag}`);
 
-const commands = [
-  new SlashCommandBuilder()
-    .setName('stats')
-    .setDescription('PUBG статистика')
-    .addStringOption(option =>
-      option.setName('nickname')
-        .setDescription('Ник игрока')
-        .setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName('kick')
-    .setDescription('Кикнуть игрока из своей комнаты')
-    .addUserOption(option =>
-      option.setName('user')
-        .setDescription('Игрок')
-        .setRequired(true)
-    )
-
-].map(cmd => cmd.toJSON());
+  const commands = [
+    new SlashCommandBuilder()
+      .setName('stats')
+      .setDescription('PUBG статистика')
+      .addStringOption(option =>
+        option.setName('nickname')
+          .setDescription('Ник игрока')
+          .setRequired(true))
+  ].map(cmd => cmd.toJSON());
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
@@ -168,83 +157,7 @@ client.on('interactionCreate', async (interaction) => {
       ephemeral: true
     });
   }
-// ===== KICK =====
-if (interaction.commandName === 'kick') {
 
- const target =
-  interaction.options.getMember('user') ||
-  interaction.guild.members.cache.get(
-    interaction.options.getUser('user').id
-  );
-  const member = interaction.member;
-
-  // пользователь должен быть в войсе
-  if (!member.voice.channel) {
-    return interaction.reply({
-      content: '❌ Ты не в голосовом канале',
-      ephemeral: true
-    });
-  }
-
-  const channel = member.voice.channel;
-
-  // только авто-комнаты
-  if (!activeRooms.has(channel.id)) {
-    return interaction.reply({
-      content: '❌ Это не авто-комната',
-      ephemeral: true
-    });
-  }
-
-  // только создатель комнаты
-  const ownerId = roomOwners.get(channel.id);
-
-  if (ownerId !== member.id) {
-    return interaction.reply({
-      content: '❌ Только создатель комнаты может кикать',
-      ephemeral: true
-    });
-  }
-
-  // нельзя кикнуть себя
-  if (target.id === member.id) {
-    return interaction.reply({
-      content: '❌ Нельзя кикнуть себя',
-      ephemeral: true
-    });
-  }
-
-  // игрок должен быть в комнате
-  if (target.voice.channelId !== channel.id) {
-    return interaction.reply({
-      content: '❌ Игрок не в твоей комнате',
-      ephemeral: true
-    });
-  }
-
-  try {
-
-    // добавляем в blacklist
-    roomBlockedUsers.get(channel.id).add(target.id);
-
-    // кикаем
-    await target.voice.disconnect();
-
-    return interaction.reply({
-      content: `✅ ${target.user.username} кикнут`,
-      ephemeral: false
-    });
-
-  } catch (err) {
-
-    console.log(err);
-
-    return interaction.reply({
-      content: '❌ Ошибка',
-      ephemeral: true
-    });
-  }
-}
   if (interaction.commandName === 'stats') {
     const nickname = interaction.options.getString('nickname');
 
@@ -467,12 +380,6 @@ const CREATE_CHANNELS = {
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const activeRooms = new Set();
 
-// кто создал комнату
-const roomOwners = new Map();
-
-// blacklist пользователей для комнаты
-const roomBlockedUsers = new Map();
-
 const ADR_ROLES = {
   "150": "1495382626146717726",
   "200": "1495382551731110008",
@@ -502,33 +409,12 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           userLimit: 4
         });
 
-activeRooms.add(room.id);
+        activeRooms.add(room.id);
 
-// сохраняем владельца комнаты
-roomOwners.set(room.id, member.id);
-
-// создаем blacklist комнаты
-roomBlockedUsers.set(room.id, new Set());
-
-await member.voice.setChannel(room);
+        await member.voice.setChannel(room);
       }
     }
-// ===== BLACKLIST =====
-if (newState.channelId && activeRooms.has(newState.channelId)) {
 
-  const blocked = roomBlockedUsers.get(newState.channelId);
-
-  // если игрок в blacklist
-  if (blocked && blocked.has(member.id)) {
-
-    // мягкий кик
-    setTimeout(() => {
-      member.voice.setChannel(null).catch(() => {});
-    }, 300);
-
-    return;
-  }
-}
     // ===== ФИЛЬТР (НОРМАЛЬНЫЙ) =====
     if (newState.channelId && activeRooms.has(newState.channelId)) {
       const channel = newState.channel;
@@ -561,14 +447,7 @@ if (newState.channelId && activeRooms.has(newState.channelId)) {
 
         if (ch.members.size === 0) {
           activeRooms.delete(ch.id);
-
-// удаляем owner
-roomOwners.delete(ch.id);
-
-// удаляем blacklist
-roomBlockedUsers.delete(ch.id);
-
-await ch.delete().catch(() => {});
+          await ch.delete().catch(() => {});
         }
       }, 1500);
     }
