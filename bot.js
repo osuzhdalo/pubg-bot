@@ -23,6 +23,7 @@ const client = new Client({
 });
 
 const PUBG_API = "https://api.pubg.com/shards/steam";
+const REGISTRATION_CHANNEL_ID = "1495396009939828867";
 // ===== ВХОД (REGISTERED) =====
 client.on('guildMemberAdd', async (member) => {
   const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
@@ -145,6 +146,17 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
+
+  // РАЗРЕШАЕМ /stats ТОЛЬКО В КАНАЛЕ РЕГИСТРАЦИИ
+  if (
+    interaction.commandName === 'stats' &&
+    interaction.channelId !== REGISTRATION_CHANNEL_ID
+  ) {
+    return interaction.reply({
+      content: '❌ Команда доступна только в канале #реєстрація',
+      ephemeral: true
+    });
+  }
 
   if (interaction.commandName === 'stats') {
     const nickname = interaction.options.getString('nickname');
