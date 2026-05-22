@@ -171,7 +171,11 @@ client.on('interactionCreate', async (interaction) => {
 // ===== KICK =====
 if (interaction.commandName === 'kick') {
 
-  const target = interaction.options.getMember('user');
+ const target =
+  interaction.options.getMember('user') ||
+  interaction.guild.members.cache.get(
+    interaction.options.getUser('user').id
+  );
   const member = interaction.member;
 
   // пользователь должен быть в войсе
