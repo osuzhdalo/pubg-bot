@@ -509,7 +509,22 @@ roomBlockedUsers.set(room.id, new Set());
 await member.voice.setChannel(room);
       }
     }
+// ===== BLACKLIST =====
+if (newState.channelId && activeRooms.has(newState.channelId)) {
 
+  const blocked = roomBlockedUsers.get(newState.channelId);
+
+  // если игрок в blacklist
+  if (blocked && blocked.has(member.id)) {
+
+    // мягкий кик
+    setTimeout(() => {
+      member.voice.setChannel(null).catch(() => {});
+    }, 300);
+
+    return;
+  }
+}
     // ===== ФИЛЬТР (НОРМАЛЬНЫЙ) =====
     if (newState.channelId && activeRooms.has(newState.channelId)) {
       const channel = newState.channel;
@@ -542,7 +557,14 @@ await member.voice.setChannel(room);
 
         if (ch.members.size === 0) {
           activeRooms.delete(ch.id);
-          await ch.delete().catch(() => {});
+
+// удаляем owner
+roomOwners.delete(ch.id);
+
+// удаляем blacklist
+roomBlockedUsers.delete(ch.id);
+
+await ch.delete().catch(() => {});
         }
       }, 1500);
     }
