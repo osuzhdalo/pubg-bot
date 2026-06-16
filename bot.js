@@ -332,7 +332,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// Голосовые комнаты
+// Голосовые комнаты с автоматическими замками по ролям
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
     const guild = newState.guild;
@@ -343,36 +343,47 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         counters[adr]++;
         const number = counters[adr];
 
+        // Готовим список прав (разрешаем заходить только нужным ролям)
+        const permissionOverwrites = [
+          {
+            id: guild.roles.everyone.id,
+            deny: ['Connect'], // Всем остальным по умолчанию вход запрещен (ставим замок)
+          },
+          {
+            id: client.user.id,
+            allow: ['ViewChannel', 'Connect', 'ManageChannels'], // Самому боту доступ нужен всегда
+          }
+        ];
+
+        // Собираем ID ролей, которым РАЗРЕШЕНО заходить в эту комнату (текущий ADR и выше)
+        for (const roleIdAdr in ADR_ROLES) {
+          if (parseInt(roleIdAdr) >= parseInt(adr)) {
+            permissionOverwrites.push({
+              id: ADR_ROLES[roleIdAdr], // ID роли из твоего списка (например, 1495380338069999738 для 300+)
+              allow: ['Connect', 'ViewChannel'] // Разрешаем им коннектиться
+            });
+          }
+        }
+
+        // Создаем канал уже сразу с замком и правами
         const room = await guild.channels.create({
           name: `🎯 ADR RANKED ${adr}+ #${number}`,
           type: ChannelType.GuildVoice,
           parent: newState.channel.parentId,
-          userLimit: 4
+          userLimit: 4,
+          permissionOverwrites: permissionOverwrites
         });
 
         activeRooms.add(room.id);
-        await member.voice.setChannel(room);
+        
+        // Перекидываем создателя в созданную комнату
+        await member.voice.setChannel(room).catch(() => {});
       }
     }
 
-    if (newState.channelId && activeRooms.has(newState.channelId)) {
-      const channel = newState.channel;
-      const match = channel.name.match(/ADR RANKED (\d+)\+/);
+    // Блок проверки при заходе больше НЕ НУЖЕН (Дискорд сам никого лишнего не пустит благодаря замку)
 
-      if (match) {
-        const requiredAdr = parseInt(match[1]);
-        const hasAccess = Object.keys(ADR_ROLES).some(adr => {
-          return parseInt(adr) >= requiredAdr && member.roles.cache.has(ADR_ROLES[adr]);
-        });
-
-        if (!hasAccess) {
-          setTimeout(() => {
-            member.voice.setChannel(null).catch(() => {});
-          }, 300);
-        }
-      }
-    }
-
+    // Удаление пустых комнат (оставляем как было)
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
       setTimeout(async () => {
         const ch = oldState.guild.channels.cache.get(oldState.channelId);
@@ -383,9 +394,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }
       }, 1500);
     }
-  } catch (err) {
-    console.log("VOICE ERROR:", err);
-  }
+  } catch (err) { console.log("VOICE ERROR:", err); }
 });
 
 // Приветствие
