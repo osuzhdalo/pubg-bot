@@ -11,12 +11,12 @@ const {
 const axios = require('axios');
 const { Pool } = require('pg');
 
-// Инициализация пула подключений к PostgreSQL на основе переменной от Railway
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Обязательно для безопасного подключения к базам на Railway
-  }
+  ssl: process.env.DATABASE_URL.includes('localhost') ? false : {
+    rejectUnauthorized: false
+  },
+  connectionTimeoutMillis: 5000 // если база не ответит за 5 сек, бот не зависнет
 });
 
 // Проверка подключения и создание таблицы при старте
@@ -285,6 +285,9 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: '❌ Команда доступна только в канале #реєстрація', ephemeral: true });
     }
 
+    // СРАЗУ говорим Дискорду, что мы работаем, чтобы не было ошибки "Приложение не отвечает"
+    await interaction.deferReply();
+
     const nickname = interaction.options.getString('nickname');
     const discordId = interaction.user.id;
 
@@ -292,13 +295,11 @@ client.on('interactionCreate', async (interaction) => {
       // Проверяем вечную регистрацию в PostgreSQL
       const existingUserRes = await pool.query("SELECT * FROM users WHERE discord_id = $1", [discordId]);
       if (existingUserRes.rows.length > 0) {
-        return interaction.reply({ 
-          content: `❌ Вы уже привязали PUBG аккаунт под ником **${existingUserRes.rows[0].pubg_nickname}**. Ваш ник сохранен навсегда в облачной базе. Повторно использовать /stats не нужно!`, 
-          ephemeral: true 
+        return interaction.editReply({ 
+          content: `❌ Вы уже привязали PUBG аккаунт под ником **${existingUserRes.rows[0].pubg_nickname}**. Ваш ник сохранен навсегда в облачной базе. Повторно использовать /stats не нужно!`
         });
       }
 
-      await interaction.deferReply();
       await interaction.editReply("⏳ Твой запрос поставлен в очередь PUBG API (задержка до 7 секунд для защиты от лимитов)...");
       
       // Отправляем задачу в очередь с задержкой 7 секунд
@@ -334,6 +335,15 @@ client.on('interactionCreate', async (interaction) => {
           `💥 ADR: ${data.tppRankedAdr}\n\n` +
           `🟢 Новые Роли: ${data.givenRoles.length ? data.givenRoles.join(', ') : 'нет'}`
         );
+
+      await interaction.editReply({ content: '✅ Успешно зарегистрировано и сохранено навсегда!', embeds: [embed] });
+
+    } catch (err) {
+      console.error("ОШИБКА В КОМАНДЕ STATS:", err);
+      await interaction.editReply({ content: `❌ Произошла ошибка: ${err.message}. Проверьте логи на Railway.` });
+    }
+  }
+});
 
       await interaction.editReply({ content: '✅ Успешно зарегистрировано и сохранено навсегда!', embeds: [embed] });
 
