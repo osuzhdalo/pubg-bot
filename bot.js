@@ -292,7 +292,7 @@ client.on('interactionCreate', async (interaction) => {
         });
       }
 
-      await interaction.editReply("⏳ Твой запрос поставлен в очередь PUBG API (задержка до 7 секунд для защиты от лимитов)...");
+      await interaction.editReply("⏳ Оновлюю статистику та підбираю ролі... Зачекайте будь ласка.");
       
       const data = await addToQueue(() => updatePlayerStatsAndRoles(interaction.member, nickname));
 
