@@ -284,13 +284,6 @@ client.on('interactionCreate', async (interaction) => {
     const discordId = interaction.user.id;
 
     try {
-      // Проверяем регистрацию
-      const existingUserRes = await pool.query("SELECT * FROM users WHERE discord_id = $1", [discordId]);
-      if (existingUserRes.rows.length > 0) {
-        return interaction.editReply({ 
-          content: `❌ Вы уже привязали PUBG аккаунт под ником **${existingUserRes.rows[0].pubg_nickname}**. Ваш ник сохранен навсегда в облачной базе. Повторно использовать /stats не нужно!`
-        });
-      }
 
       await interaction.editReply("⏳ Оновлюю статистику та підбираю ролі... Зачекайте будь ласка.");
       
