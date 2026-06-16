@@ -11,12 +11,13 @@ const {
 const axios = require('axios');
 const { Pool } = require('pg');
 
+// Инициализация пула подключений к PostgreSQL на основе переменной от Railway
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes('localhost') ? false : {
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost') ? false : {
     rejectUnauthorized: false
   },
-  connectionTimeoutMillis: 5000 // если база не ответит за 5 сек, бот не зависнет
+  connectionTimeoutMillis: 5000
 });
 
 // Проверка подключения и создание таблицы при старте
@@ -47,7 +48,7 @@ const client = new Client({
 const PUBG_API = "https://api.pubg.com/shards/steam";
 const REGISTRATION_CHANNEL_ID = "1495396009939828867";
 
-// Очередь для запросов к PUBG API (защита от лимитов, 7.5 секунд)
+// Очередь для запросов к PUBG API (7.5 секунд)
 const requestQueue = [];
 let isProcessingQueue = false;
 
@@ -70,7 +71,6 @@ async function processQueue() {
     reject(error);
   }
 
-  // Ожидание 7.5 секунд перед следующим запросом к PUBG API
   setTimeout(() => {
     isProcessingQueue = false;
     processQueue();
@@ -99,7 +99,6 @@ const ADR_ROLES = { "150": "1495382626146717726", "200": "1495382551731110008", 
 const counters = { 150: 0, 200: 0, 250: 0, 300: 0 };
 const activeRooms = new Set();
 
-// Вспомогательные функции для ролей
 function getFppAdrRole(adr) { return adr >= 350 ? "FPP ADR 350+" : adr >= 300 ? "FPP ADR 300+" : adr >= 250 ? "FPP ADR 250+" : adr >= 200 ? "FPP ADR 200+" : adr >= 150 ? "FPP ADR 150+" : "FPP ADR 100+"; }
 function getRankedAdrRole(adr) { return adr >= 350 ? "RANKED ADR 350+" : adr >= 300 ? "RANKED ADR 300+" : adr >= 250 ? "RANKED ADR 250+" : adr >= 200 ? "RANKED ADR 200+" : adr >= 150 ? "RANKED ADR 150+" : "RANKED ADR 100+"; }
 function getRankedDuoAdrRole(adr) { return adr >= 350 ? "RANKED DUO ADR 350+" : adr >= 300 ? "RANKED DUO ADR 300+" : adr >= 250 ? "RANKED DUO ADR 250+" : adr >= 200 ? "RANKED DUO ADR 200+" : adr >= 150 ? "RANKED DUO ADR 150+" : "RANKED DUO ADR 100+"; }
@@ -217,10 +216,10 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   return { fppGames, fppAdr, fppKd, tier, subTier, rp, rankedGames, rankedAdr, rankedKd, duoGames, duoAdr, duoKd, tppRankedGames, tppRankedAdr, givenRoles };
 }
 
-// Фоновое автообновление (раз в 3 дня) из PostgreSQL
+// Автообновление (раз в 3 дня)
 async function startAutoUpdateScheduler() {
   setInterval(async () => {
-    console.log("[Крон] Запущено автообновление ролей из PostgreSQL...");
+    console.log("[Крон] Запущено автообновление ролей...");
     try {
       const res = await pool.query("SELECT * FROM users");
       const users = res.rows;
@@ -231,30 +230,24 @@ async function startAutoUpdateScheduler() {
             const member = await guild.members.fetch(user.discord_id).catch(() => null);
             if (!member) continue;
 
-            console.log(`[Крон] Добавление в очередь автообновления: ${user.pubg_nickname}`);
-            
             addToQueue(() => updatePlayerStatsAndRoles(member, user.pubg_nickname))
               .then(async () => {
                 await pool.query("UPDATE users SET updated_at = $1 WHERE discord_id = $2", [Date.now(), user.discord_id]);
-                console.log(`[Крон] Успешно обновлен: ${user.pubg_nickname}`);
               })
-              .catch(err => console.log(`[Крон] Ошибка автообновления ${user.pubg_nickname}:`, err.message));
-              
+              .catch(err => console.log(`[Крон] Ошибка обновления ${user.pubg_nickname}:`, err.message));
           } catch (err) {
-            console.log("[Крон] Ошибка обработки участника:", err.message);
+            console.log("[Крон] Ошибка:", err.message);
           }
         }
       }
     } catch (dbErr) {
-      console.error("[Крон] Ошибка чтения из базы данных:", dbErr.message);
+      console.error("[Крон] Ошибка базы данных:", dbErr.message);
     }
-  }, 3 * 24 * 60 * 60 * 1000); // Интервал 3 дня
+  }, 3 * 24 * 60 * 60 * 1000);
 }
 
 client.once('ready', async () => {
   console.log(`Бот запущен как ${client.user.tag}`);
-
-  // Инициализация таблицы в PostgreSQL
   await initDatabase();
 
   const commands = [
@@ -272,11 +265,10 @@ client.once('ready', async () => {
     await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
   } catch (e) { console.log("Ошибка регистрации команд:", e); }
 
-  // Запуск планировщика обновлений
   startAutoUpdateScheduler();
 });
 
-// Обработка команды /stats
+// Событие команды /stats (Исправлено синтаксически)
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -285,14 +277,14 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: '❌ Команда доступна только в канале #реєстрація', ephemeral: true });
     }
 
-    // СРАЗУ говорим Дискорду, что мы работаем, чтобы не было ошибки "Приложение не отвечает"
+    // СРАЗУ отвечаем Discord, чтобы не было таймаута "Приложение не отвечает"
     await interaction.deferReply();
 
     const nickname = interaction.options.getString('nickname');
     const discordId = interaction.user.id;
 
     try {
-      // Проверяем вечную регистрацию в PostgreSQL
+      // Проверяем регистрацию
       const existingUserRes = await pool.query("SELECT * FROM users WHERE discord_id = $1", [discordId]);
       if (existingUserRes.rows.length > 0) {
         return interaction.editReply({ 
@@ -302,10 +294,8 @@ client.on('interactionCreate', async (interaction) => {
 
       await interaction.editReply("⏳ Твой запрос поставлен в очередь PUBG API (задержка до 7 секунд для защиты от лимитов)...");
       
-      // Отправляем задачу в очередь с задержкой 7 секунд
       const data = await addToQueue(() => updatePlayerStatsAndRoles(interaction.member, nickname));
 
-      // Сохраняем в PostgreSQL навсегда
       await pool.query(
         "INSERT INTO users (discord_id, pubg_nickname, updated_at) VALUES ($1, $2, $3) ON CONFLICT (discord_id) DO UPDATE SET pubg_nickname = EXCLUDED.pubg_nickname, updated_at = EXCLUDED.updated_at",
         [discordId, nickname, Date.now()]
@@ -339,32 +329,22 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.editReply({ content: '✅ Успешно зарегистрировано и сохранено навсегда!', embeds: [embed] });
 
     } catch (err) {
-      console.error("ОШИБКА В КОМАНДЕ STATS:", err);
-      await interaction.editReply({ content: `❌ Произошла ошибка: ${err.message}. Проверьте логи на Railway.` });
-    }
-  }
-});
-
-      await interaction.editReply({ content: '✅ Успешно зарегистрировано и сохранено навсегда!', embeds: [embed] });
-
-    } catch (err) {
-      console.log(err);
+      console.error(err);
       if (err.message === "PLAYER_NOT_FOUND") {
         await interaction.editReply("❌ Игрок не найден в базе PUBG Steam. Проверьте правильность написания ника.");
       } else {
-        await interaction.editReply("❌ Произошла ошибка базы данных или PUBG API. Попробуйте позже.");
+        await interaction.editReply(`❌ Произошла ошибка: ${err.message}. Проверьте базу данных или токен.`);
       }
     }
   }
 });
 
-// Голосовые комнаты (Автосоздание и проверка лимитов)
+// Голосовые комнаты
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
     const guild = newState.guild;
     const member = newState.member;
 
-    // Создание комнат
     for (const adr in CREATE_CHANNELS) {
       if (newState.channelId === CREATE_CHANNELS[adr] && oldState.channelId !== CREATE_CHANNELS[adr]) {
         counters[adr]++;
@@ -382,7 +362,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       }
     }
 
-    // Фильтрация игроков по ADR ролям при входе
     if (newState.channelId && activeRooms.has(newState.channelId)) {
       const channel = newState.channel;
       const match = channel.name.match(/ADR RANKED (\d+)\+/);
@@ -401,7 +380,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       }
     }
 
-    // Удаление пустых динамических комнат
     if (oldState.channelId && activeRooms.has(oldState.channelId)) {
       setTimeout(async () => {
         const ch = oldState.guild.channels.cache.get(oldState.channelId);
@@ -417,7 +395,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 });
 
-// Выдача роли REGISTERED при входе + Отправка ЛС
+// Приветствие
 client.on('guildMemberAdd', async (member) => {
   const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
   if (role) {
@@ -437,7 +415,7 @@ client.on('guildMemberAdd', async (member) => {
       "⚠️ Без /stats немає доступу до ігрових кімнат"
     );
   } catch {
-    console.log("Не вдалося надіслати ЛС пользователю.");
+    console.log("Не вдалося надіслати ЛС.");
   }
 });
 
