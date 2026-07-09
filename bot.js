@@ -319,7 +319,7 @@ client.on('interactionCreate', async (interaction) => {
           `🟢 Новые Роли: ${data.givenRoles.length ? data.givenRoles.join(', ') : 'нет'}`
         );
 
-      await interaction.editReply({ content: '✅ Успешно зарегистрировано и сохранено навсегда!', embeds: [embed] });
+await interaction.editReply({ content: '✅ Реєстрація пройшла успішно! Ваші дані збережено.', embeds: [embed] });
 
     } catch (err) {
       console.error(err);
