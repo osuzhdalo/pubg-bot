@@ -274,7 +274,7 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.commandName === 'stats') {
     if (interaction.channelId !== REGISTRATION_CHANNEL_ID) {
-      return interaction.reply({ content: '❌ Команда доступна только в канале #реєстрація', ephemeral: true });
+     return interaction.reply({ content: '❌ Команда доступна лише в каналі #реєстрація', ephemeral: true });
     }
 
     // СРАЗУ отвечаем Discord, чтобы не было таймаута "Приложение не отвечает"
