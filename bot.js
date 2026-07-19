@@ -285,27 +285,6 @@ client.once('ready', async () => {
 client.on('interactionCreate', async (interaction) => {
   // 1. Створення плашки адміністратором через /setup-registration
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-registration') {
-   // === ПРОРАХУНОК ЛІНІЙКИ ПРОГРЕСУ ДО MASTER (350+ ADR) ===
-      const currentAdr = Math.max(data.fppAdr, data.rankedAdr); // Беремо найкращий ADR гравця
-      const maxAdr = 350;
-      const totalBlocks = 10; // Кількість кубиків у лінійці
-      
-      let progressLine = "";
-      if (currentAdr >= maxAdr) {
-        progressLine = "🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 **350+ ADR ДОСЯГНУТО! 🔥**";
-      } else {
-        const greenBlocks = Math.floor((currentAdr / maxAdr) * totalBlocks);
-        const grayBlocks = totalBlocks - greenBlocks;
-        progressLine = "🟩".repeat(greenBlocks) + "⬛".repeat(grayBlocks) + ` \`${currentAdr}/${maxAdr} ADR\``;
-      }
-      // ======================================================
-
-      // Сітка: NORMAL SQUAD та RANKED SQUAD зверху паралельно один самому
-      const embed = new EmbedBuilder()
-        .setColor("#2ecc71")
-        .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: [${nickname}](https://pubg.op.gg/user/${nickname})`)
-        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n🏆 **Шлях до Ролі Master (350+ ADR):**\n${progressLine}\n\nㅤ`)
-        // ... твої поля (.addFields) та інше йде далі без змін
     const embed = new EmbedBuilder()
       .setColor('#c0392b') 
       .setTitle('🎮 РЕЄСТРАЦІЯ НА СЕРВЕРІ')
@@ -387,21 +366,35 @@ client.on('interactionCreate', async (interaction) => {
         [discordId, nickname, Date.now()]
       );
 
+      // === ПРОРАХУНОК ЛІНІЙКИ ПРОГРЕСУ ДО MASTER (350+ ADR) ===
+      const currentAdr = Math.max(data.fppAdr, data.rankedAdr); 
+      const maxAdr = 350;
+      const totalBlocks = 10; 
+      
+      let progressLine = "";
+      if (currentAdr >= maxAdr) {
+        progressLine = "🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 **350+ ADR ДОСЯГНУТО! 🔥**";
+      } else {
+        const greenBlocks = Math.floor((currentAdr / maxAdr) * totalBlocks);
+        const grayBlocks = totalBlocks - greenBlocks;
+        progressLine = "🟩".repeat(greenBlocks) + "⬛".repeat(grayBlocks) + ` \`${currentAdr}/${maxAdr} ADR\``;
+      }
+
       // Сітка: NORMAL SQUAD та RANKED SQUAD зверху паралельно один одному
       const embed = new EmbedBuilder()
-  .setColor("#2ecc71")
-  .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: [${nickname}](https://pubg.op.gg/user/${nickname})`) // Теперь ник кликабельный!
-  .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n🏆 **Шлях до Ролі Master (350+ ADR):**\n${progressLine}\n\nㅤ`)
-  .addFields(
-    { name: '🔵 NORMAL SQUAD (FPP)', value: `🎮 Ігор: \`${data.fppGames}\`\n💥 ADR: \`${data.fppAdr}\`\n🔫 K/D: \`${data.fppKd.toFixed(2)}\``, inline: true },
-    { name: '🏆 RANKED SQUAD', value: `🎖 Ранг: \`${data.tier} ${data.subTier}\`\n💠 RP: \`${data.rp}\`\n🎮 Ігор: \`${data.rankedGames}\`\n💥 ADR: \`${data.rankedAdr}\`\n🔫 K/D: \`${data.rankedKd.toFixed(2)}\``, inline: true },
-    { name: '👥 RANKED DUO', value: `🎮 Ігор: \`${data.duoGames}\`\n💥 ADR: \`${data.duoAdr}\`\n🔫 K/D: \`${data.duoKd.toFixed(2)}\``, inline: true },
-    { name: '🟠 TPP SQUAD', value: `🎮 Ігор: \`${data.tppRankedGames}\`\n💥 ADR: \`${data.tppRankedAdr}\``, inline: true },
-    { name: '🟢 Отримані ролі на сервері:', value: data.givenRoles.length ? `\`${data.givenRoles.join(', ')}\`` : '*ролей не видано*', inline: false }
-  )
-  .setThumbnail(interaction.user.displayAvatarURL())
-  .setFooter({ text: 'Дані оновлено автоматично через офіційне API PUBG', iconURL: client.user.displayAvatarURL() })
-  .setTimestamp();
+        .setColor("#2ecc71")
+        .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: [${nickname}](https://pubg.op.gg/user/${nickname})`) 
+        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n🏆 **Шлях до Ролі Master (350+ ADR):**\n${progressLine}\n\nㅤ`)
+        .addFields(
+          { name: '🔵 NORMAL SQUAD (FPP)', value: `🎮 Ігор: \`${data.fppGames}\`\n💥 ADR: \`${data.fppAdr}\`\n🔫 K/D: \`${data.fppKd.toFixed(2)}\``, inline: true },
+          { name: '🏆 RANKED SQUAD', value: `🎖 Ранг: \`${data.tier} ${data.subTier}\`\n💠 RP: \`${data.rp}\`\n🎮 Ігор: \`${data.rankedGames}\`\n💥 ADR: \`${data.rankedAdr}\`\n🔫 K/D: \`${data.rankedKd.toFixed(2)}\``, inline: true },
+          { name: '👥 RANKED DUO', value: `🎮 Ігор: \`${data.duoGames}\`\n💥 ADR: \`${data.duoAdr}\`\n🔫 K/D: \`${data.duoKd.toFixed(2)}\``, inline: true },
+          { name: '🟠 TPP SQUAD', value: `🎮 Ігор: \`${data.tppRankedGames}\`\n💥 ADR: \`${data.tppRankedAdr}\``, inline: true },
+          { name: '🟢 Отримані ролі на сервері:', value: data.givenRoles.length ? `\`${data.givenRoles.join(', ')}\`` : '*ролей не видано*', inline: false }
+        )
+        .setThumbnail(interaction.user.displayAvatarURL())
+        .setFooter({ text: 'Дані оновлено автоматично через офіційне API PUBG', iconURL: client.user.displayAvatarURL() })
+        .setTimestamp();
 
       // Надсилаємо статистику у загальний канал
       await interaction.editReply({ content: '✅ Реєстрація пройшла успішно! Ваші ролі та нікнейм оновлено.', embeds: [embed] });
@@ -448,7 +441,7 @@ client.on('interactionCreate', async (interaction) => {
       }
     }
   }
-}); // ОЦІ ДВІ ДУЖКИ З КРАПКОЮ З КОМОЮ ТЕПЕР НА МІСЦІ!
+});
 
 // Голосові кімнати з автоматичними замками за ролями
 client.on('voiceStateUpdate', async (oldState, newState) => {
@@ -517,7 +510,7 @@ client.on('guildMemberAdd', async (member) => {
   try {
     await member.send(
       "👋 Привіт!\n\n" +
-      "Ласкаво просимо на наш сервер 🎮\n\n" +
+      "Ласкаво просимо на наш server 🎮\n\n" +
       "🎮 **Хочеш грати в PUBG з іншими?**\n" +
       "Перейди в канал #реєстрація та просто натисни на червону кнопку **Зареєструватись 🔥**!\n" +
       "Введи свій ігровий нікнейм PUBG у спливаючому вікні.\n\n" +
