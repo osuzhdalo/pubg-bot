@@ -366,34 +366,41 @@ client.on('interactionCreate', async (interaction) => {
         [discordId, nickname, Date.now()]
       );
 
-      // === ПРОРАХУНОК ЛІНІЙКИ ПРОГРЕСУ ДО MASTER (350+ ADR) ===
-      const currentAdr = Math.max(data.fppAdr, data.rankedAdr); 
-      const maxAdr = 350;
-      const totalBlocks = 10; 
-      
-      let progressLine = "";
-      if (currentAdr >= maxAdr) {
-        progressLine = "🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 **350+ ADR ДОСЯГНУТО! 🔥**";
-      } else {
-        const greenBlocks = Math.floor((currentAdr / maxAdr) * totalBlocks);
-        const grayBlocks = totalBlocks - greenBlocks;
-        progressLine = "🟩".repeat(greenBlocks) + "⬛".repeat(grayBlocks) + ` \`${currentAdr}/${maxAdr} ADR\``;
-      }
-
-      // Сітка: NORMAL SQUAD та RANKED SQUAD зверху паралельно один одному
+      // Картка статистики гравця (Без зайвих лінійок прогресу, з клікабельним меншеном)
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
-        .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: [${nickname}](https://pubg.op.gg/user/${nickname})`) 
-        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n🏆 **Шлях до Ролі Master (350+ ADR):**\n${progressLine}\n\nㅤ`)
+        .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: ${nickname.toUpperCase()}`) 
+        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n*(Натисніть на посилання вище, щоб відкрити профіль Discord та переглянути ролі)*\n\nㅤ`)
         .addFields(
-          { name: '🔵 NORMAL SQUAD (FPP)', value: `🎮 Ігор: \`${data.fppGames}\`\n💥 ADR: \`${data.fppAdr}\`\n🔫 K/D: \`${data.fppKd.toFixed(2)}\``, inline: true },
-          { name: '🏆 RANKED SQUAD', value: `🎖 Ранг: \`${data.tier} ${data.subTier}\`\n💠 RP: \`${data.rp}\`\n🎮 Ігор: \`${data.rankedGames}\`\n💥 ADR: \`${data.rankedAdr}\`\n🔫 K/D: \`${data.rankedKd.toFixed(2)}\``, inline: true },
-          { name: '👥 RANKED DUO', value: `🎮 Ігор: \`${data.duoGames}\`\n💥 ADR: \`${data.duoAdr}\`\n🔫 K/D: \`${data.duoKd.toFixed(2)}\``, inline: true },
-          { name: '🟠 TPP SQUAD', value: `🎮 Ігор: \`${data.tppRankedGames}\`\n💥 ADR: \`${data.tppRankedAdr}\``, inline: true },
-          { name: '🟢 Отримані ролі на сервері:', value: data.givenRoles.length ? `\`${data.givenRoles.join(', ')}\`` : '*ролей не видано*', inline: false }
+          { 
+            name: '🔵 NORMAL SQUAD FPP', 
+            value: `🎮 **Ігри:** \`${data.fppGames}\`\n💥 **ADR:** \`${data.fppAdr}\`\n🔫 **K/D:** \`${data.fppKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.fppWr}%\``, 
+            inline: true 
+          },
+          { 
+            name: '🏆 RANKED SQUAD FPP', 
+            value: `🎖 **Ранг:** \`${data.tier} ${data.subTier}\`\n💠 **RP:** \`${data.rp}\`\n🎮 **Ігри:** \`${data.rankedGames}\`\n💥 **ADR:** \`${data.rankedAdr}\`\n🔫 **K/D:** \`${data.rankedKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${rankedWr}%\``, 
+            inline: true 
+          },
+          { name: '\u200B', value: '\u200B', inline: false }, 
+          { 
+            name: '👥 RANKED DUO FPP', 
+            value: `🎮 **Ігри:** \`${data.duoGames}\`\n💥 **ADR:** \`${data.duoAdr}\`\n🔫 **K/D:** \`${data.duoKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.duoWr}%\``, 
+            inline: true 
+          },
+          { 
+            name: '🟠 TPP SQUAD', 
+            value: `🎮 **Ігри:** \`${data.tppRankedGames}\`\n💥 **ADR:** \`${data.tppRankedAdr}\``, 
+            inline: true 
+          },
+          { name: '\u200B', value: '\u200B', inline: false },
+          { 
+            name: '🟢 ОТРИМАНІ РОЛІ НА СЕРВЕРІ', 
+            value: data.givenRoles.length ? `\`${data.givenRoles.join('\`, \` ')}\`` : '*Не отримано жодної нової ролі*' 
+          }
         )
         .setThumbnail(interaction.user.displayAvatarURL())
-        .setFooter({ text: 'Дані оновлено автоматично через офіційне API PUBG', iconURL: client.user.displayAvatarURL() })
+        .setFooter({ text: 'Дані автоматично оновлюються у фоновому режимі.' })
         .setTimestamp();
 
       // Надсилаємо статистику у загальний канал
@@ -510,7 +517,7 @@ client.on('guildMemberAdd', async (member) => {
   try {
     await member.send(
       "👋 Привіт!\n\n" +
-      "Ласкаво просимо на наш server 🎮\n\n" +
+      "Ласкаво просимо на наш сервер 🎮\n\n" +
       "🎮 **Хочеш грати в PUBG з іншими?**\n" +
       "Перейди в канал #реєстрація та просто натисни на червону кнопку **Зареєструватись 🔥**!\n" +
       "Введи свій ігровий нікнейм PUBG у спливаючому вікні.\n\n" +
