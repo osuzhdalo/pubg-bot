@@ -368,39 +368,19 @@ client.on('interactionCreate', async (interaction) => {
 
       // Сітка: NORMAL SQUAD та RANKED SQUAD зверху паралельно один одному
       const embed = new EmbedBuilder()
-        .setColor("#2ecc71")
-        .setAuthor({ name: `ПРОФІЛЬ ГРАВЦЯ: ${nickname.toUpperCase()}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) })
-        .setDescription('📊 **Ваша статистика за поточний сезон успішно синхронізована!**')
-        .addFields(
-          { 
-            name: '🔵 NORMAL SQUAD FPP', 
-            value: `🎮 **Ігри:** \`${data.fppGames}\`\n💥 **ADR:** \`${data.fppAdr}\`\n🔫 **K/D:** \`${data.fppKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.fppWr}%\``, 
-            inline: true 
-          },
-          { 
-            name: '🏆 RANKED SQUAD FPP', 
-            value: `🎖 **Ранг:** \`${data.tier} ${data.subTier}\`\n💠 **RP:** \`${data.rp}\`\n🎮 **Ігри:** \`${data.rankedGames}\`\n💥 **ADR:** \`${data.rankedAdr}\`\n🔫 **K/D:** \`${data.rankedKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${rankedWr}%\``, 
-            inline: true 
-          },
-          { name: '\u200B', value: '\u200B', inline: false }, 
-          { 
-            name: '👥 RANKED DUO FPP', 
-            value: `🎮 **Ігри:** \`${data.duoGames}\`\n💥 **ADR:** \`${data.duoAdr}\`\n🔫 **K/D:** \`${data.duoKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.duoWr}%\``, 
-            inline: true 
-          },
-          { 
-            name: '🟠 TPP SQUAD', 
-            value: `🎮 **Ігри:** \`${data.tppRankedGames}\`\n💥 **ADR:** \`${data.tppRankedAdr}\``, 
-            inline: true 
-          },
-          { name: '\u200B', value: '\u200B', inline: false },
-          { 
-            name: '🟢 ОТРИМАНІ РОЛІ НА СЕРВЕРІ', 
-            value: data.givenRoles.length ? `\`${data.givenRoles.join('\`, \` ')}\`` : '*Не отримано жодної нової ролі*' 
-          }
-        )
-        .setFooter({ text: 'Дані автоматично оновлюються у фоновому режимі.' })
-        .setTimestamp();
+  .setColor("#2ecc71")
+  .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: [${nickname}](https://pubg.op.gg/user/${nickname})`) // Теперь ник кликабельный!
+  .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n🏆 **Шлях до Ролі Master (350+ ADR):**\n${progressLine}\n\nㅤ`)
+  .addFields(
+    { name: '🔵 NORMAL SQUAD (FPP)', value: `🎮 Ігор: \`${data.fppGames}\`\n💥 ADR: \`${data.fppAdr}\`\n🔫 K/D: \`${data.fppKd.toFixed(2)}\``, inline: true },
+    { name: '🏆 RANKED SQUAD', value: `🎖 Ранг: \`${data.tier} ${data.subTier}\`\n💠 RP: \`${data.rp}\`\n🎮 Ігор: \`${data.rankedGames}\`\n💥 ADR: \`${data.rankedAdr}\`\n🔫 K/D: \`${data.rankedKd.toFixed(2)}\``, inline: true },
+    { name: '👥 RANKED DUO', value: `🎮 Ігор: \`${data.duoGames}\`\n💥 ADR: \`${data.duoAdr}\`\n🔫 K/D: \`${data.duoKd.toFixed(2)}\``, inline: true },
+    { name: '🟠 TPP SQUAD', value: `🎮 Ігор: \`${data.tppRankedGames}\`\n💥 ADR: \`${data.tppRankedAdr}\``, inline: true },
+    { name: '🟢 Отримані ролі на сервері:', value: data.givenRoles.length ? `\`${data.givenRoles.join(', ')}\`` : '*ролей не видано*', inline: false }
+  )
+  .setThumbnail(interaction.user.displayAvatarURL())
+  .setFooter({ text: 'Дані оновлено автоматично через офіційне API PUBG', iconURL: client.user.displayAvatarURL() })
+  .setTimestamp();
 
       // Надсилаємо статистику у загальний канал
       await interaction.editReply({ content: '✅ Реєстрація пройшла успішно! Ваші ролі та нікнейм оновлено.', embeds: [embed] });
@@ -421,7 +401,7 @@ client.on('interactionCreate', async (interaction) => {
             .setTitle('🎮 РЕЄСТРАЦІЯ НА СЕРВЕРІ')
             .setDescription(
               'Вітаємо! Щоб отримати доступ до ігрових каналів та автоматичних ролей на основі вашої статистики, пройдіть швидку авторизацію.\n\n' +
-              '**Натисніть червону кнопку нижче та введіть свій точний ігровий нікнейм у Steam.**'
+              '**Натисніть червону кнопку нижче та введіть свій точний ігровий нікнейм у PUBG.**'
             )
             .setFooter({ text: 'PUBG Auto-Verification • Оновлення кожні 3 дні' });
 
