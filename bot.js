@@ -285,12 +285,33 @@ client.once('ready', async () => {
 client.on('interactionCreate', async (interaction) => {
   // 1. Створення плашки адміністратором через /setup-registration
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-registration') {
+   // === ПРОРАХУНОК ЛІНІЙКИ ПРОГРЕСУ ДО MASTER (350+ ADR) ===
+      const currentAdr = Math.max(data.fppAdr, data.rankedAdr); // Беремо найкращий ADR гравця
+      const maxAdr = 350;
+      const totalBlocks = 10; // Кількість кубиків у лінійці
+      
+      let progressLine = "";
+      if (currentAdr >= maxAdr) {
+        progressLine = "🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 **350+ ADR ДОСЯГНУТО! 🔥**";
+      } else {
+        const greenBlocks = Math.floor((currentAdr / maxAdr) * totalBlocks);
+        const grayBlocks = totalBlocks - greenBlocks;
+        progressLine = "🟩".repeat(greenBlocks) + "⬛".repeat(grayBlocks) + ` \`${currentAdr}/${maxAdr} ADR\``;
+      }
+      // ======================================================
+
+      // Сітка: NORMAL SQUAD та RANKED SQUAD зверху паралельно один самому
+      const embed = new EmbedBuilder()
+        .setColor("#2ecc71")
+        .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: [${nickname}](https://pubg.op.gg/user/${nickname})`)
+        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n🏆 **Шлях до Ролі Master (350+ ADR):**\n${progressLine}\n\nㅤ`)
+        // ... твої поля (.addFields) та інше йде далі без змін
     const embed = new EmbedBuilder()
       .setColor('#c0392b') 
       .setTitle('🎮 РЕЄСТРАЦІЯ НА СЕРВЕРІ')
       .setDescription(
         'Вітаємо! Щоб отримати доступ до ігрових каналів та автоматичних ролей на основі вашої статистики, пройдіть швидку авторизацію.\n\n' +
-        '**Натисніть червону кнопку нижче та введіть свій точний ігровий нікнейм у Steam.**'
+        '**Натисніть червону кнопку нижче та введіть свій точний ігровий нікнейм у PUBG.**'
       )
       .setFooter({ text: 'PUBG Auto-Verification • Оновлення кожні 3 дні' });
 
