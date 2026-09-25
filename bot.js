@@ -113,6 +113,8 @@ function getTppAdrRole(adr) { return adr >= 350 ? "TPP ADR 350+" : adr >= 300 ? 
 function getFppKdRole(kd) { return kd >= 2 ? "FPP KD 2+" : kd >= 1.5 ? "FPP KD 1.5+" : kd >= 1 ? "FPP KD 1+" : null; }
 function getRankedKdRole(kd) { return kd >= 2 ? "RANKED KD 2+" : kd >= 1.5 ? "RANKED KD 1.5+" : kd >= 1 ? "RANKED KD 1+" : null; }
 function getRankedDuoKdRole(kd) { return kd >= 2 ? "RANKED DUO KD 2+" : kd >= 1.5 ? "RANKED DUO KD 1.5+" : kd >= 1 ? "RANKED DUO KD 1+" : null; }
+function getRankRoleName(tier, subTier) { if (!tier || tier === "UNRANKED") return null; const formatted = tier.charAt(0) + tier.slice(1).toLowerCase(); return subTier ? `${formatted} ${subTier}` : formatted; }
+
 // Оновлення статистики гравця та видача ролей
 async function updatePlayerStatsAndRoles(member, nickname) {
   const guild = member.guild;
@@ -205,15 +207,15 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   if (tppRankedGames > 0) { rolesToGiveNames.push(getTppAdrRole(tppRankedAdr)); }
   if (duoGames > 0) { rolesToGiveNames.push(getRankedDuoAdrRole(duoAdr)); rolesToGiveNames.push(getRankedDuoKdRole(duoKd)); }
 
- // Функция форматирования ранга (учитывает, что у Master/Grandmaster нет subTier)
-function getRankRoleName(tier, subTier) { 
-  if (!tier || tier === "UNRANKED") return null; 
-  const formatted = tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase(); 
-  if (!subTier || tier.toUpperCase() === 'MASTER' || tier.toUpperCase() === 'GRANDMASTER') {
-    return formatted; // Вернет "Master" или "Grandmaster"
+  const givenRoles = [];
+  for (const rName of rolesToGiveNames) {
+    if (!rName) continue;
+    const role = guild.roles.cache.find(r => r.name === rName);
+    if (role && role.position < guild.members.me.roles.highest.position) {
+      await member.roles.add(role).catch(() => {});
+      givenRoles.push(role.name);
+    }
   }
-  return `${formatted} ${subTier}`; 
-}
 
   // Зняття ролі REGISTERED
   const regRole = guild.roles.cache.find(r => r.name === "REGISTERED");
@@ -229,21 +231,13 @@ function getRankRoleName(tier, subTier) {
   return { fppGames, fppAdr, fppKd, fppWr, tier, subTier, rp, rankedGames, rankedAdr, rankedKd, rankedWr, duoGames, duoAdr, duoKd, duoWr, tppRankedGames, tppRankedAdr, givenRoles };
 }
 
-// Автооновлення статистики (перевіряє базу щогодини, оновлює тих, хто не оновлювався 3+ днів)
+// Автооновлення статистики (раз на 3 дні)
 async function startAutoUpdateScheduler() {
-  // Запускаємо перевірку кожну годину (60 * 60 * 1000 мс)
   setInterval(async () => {
-    console.log("[Крон] Перевірка користувачів для автооновлення статистики...");
+    console.log("[Крон] Запущено автоматичне оновлення ролей...");
     try {
-      // Вираховуємо мітку часу: 3 дні тому
-      const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
-      
-      // Запитуємо з бази тільки тих, у кого updated_at менше або дорівнює 3 дням тому
-      const res = await pool.query("SELECT * FROM users WHERE updated_at <= $1", [threeDaysAgo]);
+      const res = await pool.query("SELECT * FROM users");
       const users = res.rows;
-
-      if (users.length === 0) return;
-      console.log(`[Крон] Знайдено ${users.length} користувачів, яким потрібно оновити статистику.`);
 
       for (const user of users) {
         for (const [guildId, guild] of client.guilds.cache) {
@@ -251,22 +245,20 @@ async function startAutoUpdateScheduler() {
             const member = await guild.members.fetch(user.discord_id).catch(() => null);
             if (!member) continue;
 
-            // Використовуємо вашу чергу запитів до API
-            await addToQueue(async () => {
-              await updatePlayerStatsAndRoles(member, user.pubg_nickname);
-              // Оновлюємо час останнього оновлення в базі
-              await pool.query("UPDATE users SET updated_at = $1 WHERE discord_id = $2", [Date.now(), user.discord_id]);
-              console.log(`[Крон] Успішно оновлено статистику для гравця ${user.pubg_nickname}`);
-            });
+            addToQueue(() => updatePlayerStatsAndRoles(member, user.pubg_nickname))
+              .then(async () => {
+                await pool.query("UPDATE users SET updated_at = $1 WHERE discord_id = $2", [Date.now(), user.discord_id]);
+              })
+              .catch(err => console.log(`[Крон] Ошибка оновлення ${user.pubg_nickname}:`, err.message));
           } catch (err) {
-            console.log(`[Крон] Помилка оновлення ${user.pubg_nickname}:`, err.message);
+            console.log("[Крон] Помилка крона:", err.message);
           }
         }
       }
     } catch (dbErr) {
       console.error("[Крон] Помилка бази даних:", dbErr.message);
     }
-  }, 60 * 60 * 1000); // 1 година
+  }, 3 * 24 * 60 * 60 * 1000);
 }
 
 client.once('ready', async () => {
@@ -374,42 +366,43 @@ client.on('interactionCreate', async (interaction) => {
         [discordId, nickname, Date.now()]
       );
 
-     // Картка статистики гравця
+      // Картка статистики гравця (Без зайвих лінійок прогресу, з клікабельним меншеном)
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
         .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: ${nickname.toUpperCase()}`) 
-        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n*(Натисніть на посилання вище, щоб відкрити профіль Discord та переглянути ролі)*\n\nㅤ`)
+        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n*(Натисніть на посилання вище, щоб відкрити профіль Discord та переглянути ролі)*\n\n`)
         .addFields(
-          {  
-            name: '🔵 NORMAL SQUAD FPP',  
-            value: `🎮 **Ігри:** \`${data.fppGames}\`\n💥 **ADR:** \`${data.fppAdr}\`\n🔫 **K/D:** \`${data.fppKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.fppWr}%\``,  
-            inline: true  
+          { 
+            name: '🔵 NORMAL SQUAD FPP', 
+            value: `🎮 **Ігри:** \`${data.fppGames}\`\n💥 **ADR:** \`${data.fppAdr}\`\n🔫 **K/D:** \`${data.fppKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.fppWr}%\``, 
+            inline: true 
           },
-          {  
-            name: '🏆 RANKED SQUAD FPP',  
-            value: `🎖 **Ранг:** \`${data.tier} ${data.subTier}\`\n💠 **RP:** \`${data.rp}\`\n🎮 **Ігри:** \`${data.rankedGames}\`\n💥 **ADR:** \`${data.rankedAdr}\`\n🔫 **K/D:** \`${data.rankedKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${rankedWr}%\``,  
-            inline: true  
+          { 
+            name: '🏆 RANKED SQUAD FPP', 
+            value: `🎖 **Ранг:** \`${data.tier} ${data.subTier}\`\n💠 **RP:** \`${data.rp}\`\n🎮 **Ігри:** \`${data.rankedGames}\`\n💥 **ADR:** \`${data.rankedAdr}\`\n🔫 **K/D:** \`${data.rankedKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${rankedWr}%\``, 
+            inline: true 
           },
-          { name: '\u200B', value: '\u200B', inline: false },  
-          {  
-            name: '👥 RANKED DUO FPP',  
-            value: `🎮 **Ігри:** \`${data.duoGames}\`\n💥 **ADR:** \`${data.duoAdr}\`\n🔫 **K/D:** \`${data.duoKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.duoWr}%\``,  
-            inline: true  
+          { name: '\u200B', value: '\u200B', inline: false }, 
+          { 
+            name: '👥 RANKED DUO FPP', 
+            value: `🎮 **Ігри:** \`${data.duoGames}\`\n💥 **ADR:** \`${data.duoAdr}\`\n🔫 **K/D:** \`${data.duoKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.duoWr}%\``, 
+            inline: true 
           },
-          {  
-            name: '🟠 TPP SQUAD',  
-            value: `🎮 **Ігри:** \`${data.tppRankedGames}\`\n💥 **ADR:** \`${data.tppRankedAdr}\``,  
-            inline: true  
+          { 
+            name: '🟠 TPP SQUAD', 
+            value: `🎮 **Ігри:** \`${data.tppRankedGames}\`\n💥 **ADR:** \`${data.tppRankedAdr}\``, 
+            inline: true 
           },
           { name: '\u200B', value: '\u200B', inline: false },
-          {  
-            name: '🟢 ОТРИМАНІ РОЛІ НА СЕРВЕРІ',  
-            value: data.givenRoles.length ? `\`${data.givenRoles.join('\`, \` ')}\`` : '*Не отримано жодної нової ролі*'  // Виправлено тут!
+          { 
+            name: '🟢 ОТРИМАНІ РОЛІ НА СЕРВЕРІ', 
+            value: data.givenRoles.length ? `\`${data.givenRoles.join('\`, \` ')}\`` : '*Не отримано жодної нової ролі*' 
           }
         )
         .setThumbnail(interaction.user.displayAvatarURL())
         .setFooter({ text: 'Дані автоматично оновлюються у фоновому режимі.' })
         .setTimestamp();
+
       // Надсилаємо статистику у загальний канал
       await interaction.editReply({ content: '✅ Реєстрація пройшла успішно! Ваші ролі та нікнейм оновлено.', embeds: [embed] });
 
