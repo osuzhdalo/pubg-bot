@@ -113,8 +113,6 @@ function getTppAdrRole(adr) { return adr >= 350 ? "TPP ADR 350+" : adr >= 300 ? 
 function getFppKdRole(kd) { return kd >= 2 ? "FPP KD 2+" : kd >= 1.5 ? "FPP KD 1.5+" : kd >= 1 ? "FPP KD 1+" : null; }
 function getRankedKdRole(kd) { return kd >= 2 ? "RANKED KD 2+" : kd >= 1.5 ? "RANKED KD 1.5+" : kd >= 1 ? "RANKED KD 1+" : null; }
 function getRankedDuoKdRole(kd) { return kd >= 2 ? "RANKED DUO KD 2+" : kd >= 1.5 ? "RANKED DUO KD 1.5+" : kd >= 1 ? "RANKED DUO KD 1+" : null; }
-function getRankRoleName(tier, subTier) { if (!tier || tier === "UNRANKED") return null; const formatted = tier.charAt(0) + tier.slice(1).toLowerCase(); return subTier ? `${formatted} ${subTier}` : formatted; }
-
 // Оновлення статистики гравця та видача ролей
 async function updatePlayerStatsAndRoles(member, nickname) {
   const guild = member.guild;
@@ -207,15 +205,15 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   if (tppRankedGames > 0) { rolesToGiveNames.push(getTppAdrRole(tppRankedAdr)); }
   if (duoGames > 0) { rolesToGiveNames.push(getRankedDuoAdrRole(duoAdr)); rolesToGiveNames.push(getRankedDuoKdRole(duoKd)); }
 
-  const givenRoles = [];
-  for (const rName of rolesToGiveNames) {
-    if (!rName) continue;
-    const role = guild.roles.cache.find(r => r.name === rName);
-    if (role && role.position < guild.members.me.roles.highest.position) {
-      await member.roles.add(role).catch(() => {});
-      givenRoles.push(role.name);
-    }
+ // Функция форматирования ранга (учитывает, что у Master/Grandmaster нет subTier)
+function getRankRoleName(tier, subTier) { 
+  if (!tier || tier === "UNRANKED") return null; 
+  const formatted = tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase(); 
+  if (!subTier || tier.toUpperCase() === 'MASTER' || tier.toUpperCase() === 'GRANDMASTER') {
+    return formatted; // Вернет "Master" или "Grandmaster"
   }
+  return `${formatted} ${subTier}`; 
+}
 
   // Зняття ролі REGISTERED
   const regRole = guild.roles.cache.find(r => r.name === "REGISTERED");
@@ -231,13 +229,21 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   return { fppGames, fppAdr, fppKd, fppWr, tier, subTier, rp, rankedGames, rankedAdr, rankedKd, rankedWr, duoGames, duoAdr, duoKd, duoWr, tppRankedGames, tppRankedAdr, givenRoles };
 }
 
-// Автооновлення статистики (раз на 3 дні)
+// Автооновлення статистики (перевіряє базу щогодини, оновлює тих, хто не оновлювався 3+ днів)
 async function startAutoUpdateScheduler() {
+  // Запускаємо перевірку кожну годину (60 * 60 * 1000 мс)
   setInterval(async () => {
-    console.log("[Крон] Запущено автоматичне оновлення ролей...");
+    console.log("[Крон] Перевірка користувачів для автооновлення статистики...");
     try {
-      const res = await pool.query("SELECT * FROM users");
+      // Вираховуємо мітку часу: 3 дні тому
+      const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
+      
+      // Запитуємо з бази тільки тих, у кого updated_at менше або дорівнює 3 дням тому
+      const res = await pool.query("SELECT * FROM users WHERE updated_at <= $1", [threeDaysAgo]);
       const users = res.rows;
+
+      if (users.length === 0) return;
+      console.log(`[Крон] Знайдено ${users.length} користувачів, яким потрібно оновити статистику.`);
 
       for (const user of users) {
         for (const [guildId, guild] of client.guilds.cache) {
@@ -245,20 +251,22 @@ async function startAutoUpdateScheduler() {
             const member = await guild.members.fetch(user.discord_id).catch(() => null);
             if (!member) continue;
 
-            addToQueue(() => updatePlayerStatsAndRoles(member, user.pubg_nickname))
-              .then(async () => {
-                await pool.query("UPDATE users SET updated_at = $1 WHERE discord_id = $2", [Date.now(), user.discord_id]);
-              })
-              .catch(err => console.log(`[Крон] Ошибка оновлення ${user.pubg_nickname}:`, err.message));
+            // Використовуємо вашу чергу запитів до API
+            await addToQueue(async () => {
+              await updatePlayerStatsAndRoles(member, user.pubg_nickname);
+              // Оновлюємо час останнього оновлення в базі
+              await pool.query("UPDATE users SET updated_at = $1 WHERE discord_id = $2", [Date.now(), user.discord_id]);
+              console.log(`[Крон] Успішно оновлено статистику для гравця ${user.pubg_nickname}`);
+            });
           } catch (err) {
-            console.log("[Крон] Помилка крона:", err.message);
+            console.log(`[Крон] Помилка оновлення ${user.pubg_nickname}:`, err.message);
           }
         }
       }
     } catch (dbErr) {
       console.error("[Крон] Помилка бази даних:", dbErr.message);
     }
-  }, 3 * 24 * 60 * 60 * 1000);
+  }, 60 * 60 * 1000); // 1 година
 }
 
 client.once('ready', async () => {
