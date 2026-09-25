@@ -374,43 +374,42 @@ client.on('interactionCreate', async (interaction) => {
         [discordId, nickname, Date.now()]
       );
 
-      // Картка статистики гравця (Без зайвих лінійок прогресу, з клікабельним меншеном)
+     // Картка статистики гравця
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
         .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: ${nickname.toUpperCase()}`) 
         .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n*(Натисніть на посилання вище, щоб відкрити профіль Discord та переглянути ролі)*\n\nㅤ`)
         .addFields(
-          { 
-            name: '🔵 NORMAL SQUAD FPP', 
-            value: `🎮 **Ігри:** \`${data.fppGames}\`\n💥 **ADR:** \`${data.fppAdr}\`\n🔫 **K/D:** \`${data.fppKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.fppWr}%\``, 
-            inline: true 
+          {  
+            name: '🔵 NORMAL SQUAD FPP',  
+            value: `🎮 **Ігри:** \`${data.fppGames}\`\n💥 **ADR:** \`${data.fppAdr}\`\n🔫 **K/D:** \`${data.fppKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.fppWr}%\``,  
+            inline: true  
           },
-          { 
-            name: '🏆 RANKED SQUAD FPP', 
-            value: `🎖 **Ранг:** \`${data.tier} ${data.subTier}\`\n💠 **RP:** \`${data.rp}\`\n🎮 **Ігри:** \`${data.rankedGames}\`\n💥 **ADR:** \`${data.rankedAdr}\`\n🔫 **K/D:** \`${data.rankedKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${rankedWr}%\``, 
-            inline: true 
+          {  
+            name: '🏆 RANKED SQUAD FPP',  
+            value: `🎖 **Ранг:** \`${data.tier} ${data.subTier}\`\n💠 **RP:** \`${data.rp}\`\n🎮 **Ігри:** \`${data.rankedGames}\`\n💥 **ADR:** \`${data.rankedAdr}\`\n🔫 **K/D:** \`${data.rankedKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${rankedWr}%\``,  
+            inline: true  
           },
-          { name: '\u200B', value: '\u200B', inline: false }, 
-          { 
-            name: '👥 RANKED DUO FPP', 
-            value: `🎮 **Ігри:** \`${data.duoGames}\`\n💥 **ADR:** \`${data.duoAdr}\`\n🔫 **K/D:** \`${data.duoKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.duoWr}%\``, 
-            inline: true 
+          { name: '\u200B', value: '\u200B', inline: false },  
+          {  
+            name: '👥 RANKED DUO FPP',  
+            value: `🎮 **Ігри:** \`${data.duoGames}\`\n💥 **ADR:** \`${data.duoAdr}\`\n🔫 **K/D:** \`${data.duoKd.toFixed(2)}\`\n🏆 **Win Rate:** \`${data.duoWr}%\``,  
+            inline: true  
           },
-          { 
-            name: '🟠 TPP SQUAD', 
-            value: `🎮 **Ігри:** \`${data.tppRankedGames}\`\n💥 **ADR:** \`${data.tppRankedAdr}\``, 
-            inline: true 
+          {  
+            name: '🟠 TPP SQUAD',  
+            value: `🎮 **Ігри:** \`${data.tppRankedGames}\`\n💥 **ADR:** \`${data.tppRankedAdr}\``,  
+            inline: true  
           },
           { name: '\u200B', value: '\u200B', inline: false },
-          { 
-            name: '🟢 ОТРИМАНІ РОЛІ НА СЕРВЕРІ', 
-            value: data.givenRoles.length ? `\`${data.givenRoles.join('\`, \` ')}\`` : '*Не отримано жодної нової ролі*' 
+          {  
+            name: '🟢 ОТРИМАНІ РОЛІ НА СЕРВЕРІ',  
+            value: data.givenRoles.length ? `\`${data.givenRoles.join('\`, \` ')}\`` : '*Не отримано жодної нової ролі*'  // Виправлено тут!
           }
         )
         .setThumbnail(interaction.user.displayAvatarURL())
         .setFooter({ text: 'Дані автоматично оновлюються у фоновому режимі.' })
         .setTimestamp();
-
       // Надсилаємо статистику у загальний канал
       await interaction.editReply({ content: '✅ Реєстрація пройшла успішно! Ваші ролі та нікнейм оновлено.', embeds: [embed] });
 
