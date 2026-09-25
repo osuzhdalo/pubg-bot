@@ -98,7 +98,7 @@ const ALL_ROLES = [
   "Gold 4","Gold 3","Gold 2","Gold 1",
   "Platinum 4","Platinum 3","Platinum 2","Platinum 1",
   "Diamond 4","Diamond 3","Diamond 2","Diamond 1",
-  "Master","Grandmaster"
+  "Master","Survivor"
 ];
 
 const CREATE_CHANNELS = { "150": "1495532168946913310", "200": "1495532213674971147", "250": "1495532256410734824", "300": "1495532283354943508" };
