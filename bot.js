@@ -18,7 +18,6 @@ const {
 const axios = require('axios');
 const { Pool } = require('pg');
 
-// Ініціалізація пулу підключень до PostgreSQL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost') ? false : {
@@ -27,7 +26,6 @@ const pool = new Pool({
   connectionTimeoutMillis: 5000
 });
 
-// Перевірка підключення та створення таблиці при старті
 async function initDatabase() {
   try {
     await pool.query(`
@@ -54,7 +52,7 @@ const client = new Client({
 
 const PUBG_API = "https://api.pubg.com/shards/steam";
 
-// Черга для запитів до PUBG API (7.5 секунд)
+// Оптимізована черга (знижено затримку до 3.5 секунд для комфортнішої перевірки)
 const requestQueue = [];
 let isProcessingQueue = false;
 
@@ -80,10 +78,9 @@ async function processQueue() {
   setTimeout(() => {
     isProcessingQueue = false;
     processQueue();
-  }, 7500);
+  }, 3500); // Зменшено з 7.5 до 3.5 секунд для швидшої реакції
 }
 
-// ===== ВСІ РОЛІ (Без Grandmaster) =====
 const ALL_ROLES = [
   "FPP ADR 350+","FPP ADR 300+","FPP ADR 250+","FPP ADR 200+","FPP ADR 100+",
   "RANKED ADR 350+","RANKED ADR 300+","RANKED ADR 250+","RANKED ADR 200+","RANKED ADR 150+","RANKED ADR 100+",
@@ -118,7 +115,6 @@ function getRankRoleName(tier, subTier) {
   return subTier ? `${formatted}${subTier}` : formatted; 
 }
 
-// Оновлення статистики гравця та видача ролей
 async function updatePlayerStatsAndRoles(member, nickname) {
   const guild = member.guild;
 
@@ -213,60 +209,30 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   if (tppRankedGames > 0) { rolesToGiveNames.push(getTppAdrRole(tppRankedAdr)); }
   if (duoGames > 0) { rolesToGiveNames.push(getRankedDuoAdrRole(duoAdr)); rolesToGiveNames.push(getRankedDuoKdRole(duoKd)); }
 
-  const givenRoles = [];
   for (const rName of rolesToGiveNames) {
     if (!rName) continue;
     const role = guild.roles.cache.find(r => r.name.toLowerCase() === rName.toLowerCase());
     if (role && role.position < guild.members.me.roles.highest.position) {
       await member.roles.add(role).catch(() => {});
-      givenRoles.push(role.name);
     }
   }
 
-  // Зняття ролі REGISTERED
   const regRole = guild.roles.cache.find(r => r.name === "REGISTERED");
   if (regRole && member.roles.cache.has(regRole.id)) {
     await member.roles.remove(regRole).catch(() => {});
   }
 
-  // Зміна нікнейму (примусово)
-  try {
-    if (member.manageable) {
-      await member.setNickname(nickname);
-    }
-  } catch (err) {}
-
-  return { fppGames, fppAdr, fppKd, fppWr, tier, subTier, rp, rankedGames, rankedAdr, rankedKd, rankedWr, duoGames, duoAdr, duoKd, duoWr, tppRankedGames, tppRankedAdr, givenRoles };
-}
-
-// Автооновлення статистики (раз на 3 дні)
-async function startAutoUpdateScheduler() {
-  setInterval(async () => {
-    console.log("[Крон] Запущено автоматичне оновлення ролей...");
+  // ВИПРАВЛЕННЯ ЗМІНИ НІКНЕЙМУ:
+  // Бот не може змінювати нік власнику сервера (Server Owner) та юзерам, чиї ролі вищі за бота.
+  if (guild.ownerId !== member.id && member.manageable) {
     try {
-      const res = await pool.query("SELECT * FROM users");
-      const users = res.rows;
-
-      for (const user of users) {
-        for (const [guildId, guild] of client.guilds.cache) {
-          try {
-            const member = await guild.members.fetch(user.discord_id).catch(() => null);
-            if (!member) continue;
-
-            addToQueue(() => updatePlayerStatsAndRoles(member, user.pubg_nickname))
-              .then(async () => {
-                await pool.query("UPDATE users SET updated_at = $1 WHERE discord_id = $2", [Date.now(), user.discord_id]);
-              })
-              .catch(err => console.log(`[Крон] Ошибка оновлення ${user.pubg_nickname}:`, err.message));
-          } catch (err) {
-            console.log("[Крон] Помилка крона:", err.message);
-          }
-        }
-      }
-    } catch (dbErr) {
-      console.error("[Крон] Помилка бази даних:", dbErr.message);
+      await member.setNickname(nickname);
+    } catch (err) {
+      console.log(`Не вдалося змінити нікнейм користувачу ${member.user.tag}:${err.message}`);
     }
-  }, 3 * 24 * 60 * 60 * 1000);
+  }
+
+  return { fppGames, fppAdr, fppKd, fppWr, tier, subTier, rp, rankedGames, rankedAdr, rankedKd, rankedWr, duoGames, duoAdr, duoKd, duoWr, tppRankedGames, tppRankedAdr, givenRoles: rolesToGiveNames };
 }
 
 client.once('ready', async () => {
@@ -284,8 +250,6 @@ client.once('ready', async () => {
   try {
     await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
   } catch (e) { console.log("Помилка реєстрації команд:", e); }
-
-  startAutoUpdateScheduler();
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -297,7 +261,7 @@ client.on('interactionCreate', async (interaction) => {
         'Вітаємо! Щоб отримати доступ до ігрових каналів та автоматичних ролей на основі вашої статистики, пройдіть швидку авторизацію.\n\n' +
         '**Натисніть червону кнопку нижче та введіть свій точний ігровий нікнейм у PUBG.**'
       )
-      .setFooter({ text: 'PUBG Auto-Verification • Оновлення кожні 3 дні' });
+      .setFooter({ text: 'PUBG Auto-Verification' });
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -349,7 +313,7 @@ client.on('interactionCreate', async (interaction) => {
       const embed = new EmbedBuilder()
         .setColor("#2ecc71")
         .setTitle(`📊 СТАТИСТИКА ГРАВЦЯ: ${nickname.toUpperCase()}`) 
-        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n*(Натисніть на посилання вище, щоб відкрити профіль Discord та переглянути ролі)*\n\n`)
+        .setDescription(`👤 **Профіль користувача:** <@${discordId}>\n\n`)
         .addFields(
           { 
             name: '🔵 NORMAL SQUAD FPP', 
@@ -379,48 +343,13 @@ client.on('interactionCreate', async (interaction) => {
           }
         )
         .setThumbnail(interaction.user.displayAvatarURL())
-        .setFooter({ text: 'Дані автоматично оновлюються у фоновому режимі.' })
         .setTimestamp();
 
       await interaction.editReply({ content: '✅ Реєстрація пройшла успішно! Ваші ролі та нікнейм оновлено.', embeds: [embed] });
 
-      // Перенесення плашки вниз
-      const channel = interaction.channel;
-      if (channel) {
-        try {
-          const messages = await channel.messages.fetch({ limit: 20 });
-          const oldBanner = messages.find(m => m.author.id === client.user.id && m.components.some(row => row.components.some(c => c.customId === 'register_btn')));
-          
-          if (oldBanner) {
-            await oldBanner.delete().catch(() => {});
-          }
-
-          const regEmbed = new EmbedBuilder()
-            .setColor('#c0392b')
-            .setTitle('🎮 РЕЄСТРАЦІЯ НА СЕРВЕРІ')
-            .setDescription(
-              'Вітаємо! Щоб отримати доступ до ігрових каналів та автоматичних ролей на основі вашої статистики, пройдіть швидку авторизацію.\n\n' +
-              '**Натисніть червону кнопку нижче та введіть свій точний ігровий нікнейм у PUBG.**'
-            )
-            .setFooter({ text: 'PUBG Auto-Verification • Оновлення кожні 3 дні' });
-
-          const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId('register_btn')
-              .setLabel('Зареєструватись 🔥')
-              .setStyle(ButtonStyle.Danger)
-          );
-
-          await channel.send({ embeds: [regEmbed], components: [row] });
-        } catch (e) {
-          console.error("Не вдалося перемістити плашку вниз:", e);
-        }
-      }
-
     } catch (err) {
       console.error(err);
       
-      // Перехоплення помилок та виведення нормального тексту
       let userMessage = `❌ Сталася помилка при реєстрації: ${err.message}`;
 
       if (err.message === "PLAYER_NOT_FOUND") {
@@ -443,7 +372,7 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// Голосові кімнати з автоматичними замками за ролями
+// Голосові кімнати
 client.on('voiceStateUpdate', async (oldState, newState) => {
   try {
     const guild = newState.guild;
@@ -455,22 +384,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         const number = counters[adr];
 
         const permissionOverwrites = [
-          {
-            id: guild.roles.everyone.id,
-            deny: ['Connect'], 
-          },
-          {
-            id: client.user.id,
-            allow: ['ViewChannel', 'Connect', 'ManageChannels'], 
-          }
+          { id: guild.roles.everyone.id, deny: ['Connect'] },
+          { id: client.user.id, allow: ['ViewChannel', 'Connect', 'ManageChannels'] }
         ];
 
         for (const roleIdAdr in ADR_ROLES) {
           if (parseInt(roleIdAdr) >= parseInt(adr)) {
-            permissionOverwrites.push({
-              id: ADR_ROLES[roleIdAdr], 
-              allow: ['Connect', 'ViewChannel'] 
-            });
+            permissionOverwrites.push({ id: ADR_ROLES[roleIdAdr], allow: ['Connect', 'ViewChannel'] });
           }
         }
 
@@ -500,25 +420,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   } catch (err) { console.log("VOICE ERROR:", err); }
 });
 
-// Привітання нових учасників
 client.on('guildMemberAdd', async (member) => {
   const role = member.guild.roles.cache.find(r => r.name === "REGISTERED");
-  if (role) {
-    await member.roles.add(role).catch(() => {});
-  }
-
-  try {
-    await member.send(
-      "👋 Привіт!\n\n" +
-      "Ласкаво просимо на наш сервер 🎮\n\n" +
-      "🎮 **Хочеш грати в PUBG з іншими?**\n" +
-      "Перейди в канал #реєстрація та просто натисни на червону кнопку **Зареєструватись 🔥**!\n" +
-      "Введи свій ігровий нікнейм PUBG у спливаючому вікні.\n\n" +
-      "⚠️ **Важливо:** Без реєстрації у вас не буде доступу до голосових ігрових кімнат!"
-    );
-  } catch {
-    console.log("Не вдалося надіслати привітальне ЛС.");
-  }
+  if (role) await member.roles.add(role).catch(() => {});
 });
 
 client.login(process.env.DISCORD_TOKEN);
