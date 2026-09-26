@@ -108,10 +108,21 @@ function getTppAdrRole(adr) { return adr >= 350 ? "TPP ADR 350+" : adr >= 300 ? 
 function getFppKdRole(kd) { return kd >= 2 ? "FPP KD 2+" : kd >= 1.5 ? "FPP KD 1.5+" : kd >= 1 ? "FPP KD 1+" : null; }
 function getRankedKdRole(kd) { return kd >= 2 ? "RANKED KD 2+" : kd >= 1.5 ? "RANKED KD 1.5+" : kd >= 1 ? "RANKED KD 1+" : null; }
 function getRankedDuoKdRole(kd) { return kd >= 2 ? "RANKED DUO KD 2+" : kd >= 1.5 ? "RANKED DUO KD 1.5+" : kd >= 1 ? "RANKED DUO KD 1+" : null; }
+
 function getRankRoleName(tier, subTier) { 
-  if (!tier || tier === "UNRANKED") return null; 
-  const formatted = tier.charAt(0) + tier.slice(1).toLowerCase(); 
-  return subTier ? `${formatted}${subTier}` : formatted; 
+  if (!tier || tier.toUpperCase() === "UNRANKED" || tier === "") return null; 
+  const formattedTier = tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase();
+  
+  // Якщо це Master, він зазвичай без subTier
+  if (formattedTier === "Master" || formattedTier === "Grandmaster") {
+    return "Master";
+  }
+
+  // Для Bronze, Silver, Gold, Platinum, Diamond
+  if (subTier && subTier !== "" && !isNaN(subTier)) {
+    return `${formattedTier}${subTier}`;
+  }
+  return formattedTier; 
 }
 
 async function updatePlayerStatsAndRoles(member, nickname) {
@@ -128,13 +139,11 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   });
   const seasonId = seasonRes.data.data.find(s => s.attributes.isCurrentSeason).id;
 
+  // Отримання звичайної статистики
   const normalRes = await axios.get(`${PUBG_API}/players/${playerId}/seasons/${seasonId}`, {
     headers: { Authorization: `Bearer ${process.env.PUBG_API_KEY}`, Accept: 'application/vnd.api+json' }
   });
-  
   const stats = normalRes.data.data.attributes.gameModeStats || {};
-  
-  // Універсальний пошук FPP та TPP режимів у відповіді API
   const normalFpp = stats['squad-fpp'] || stats['duo-fpp'] || stats['solo-fpp'] || {};
   const normalTpp = stats['squad'] || stats['duo'] || stats['solo'] || {};
 
@@ -147,6 +156,7 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   const tppGames = normalTpp.roundsPlayed || 0;
   const tppAdr = tppGames ? Math.round(normalTpp.damageDealt / tppGames) : 0;
 
+  // Отримання рангової статистики (з виправленим парсингом)
   let rankedGames = 0, rankedAdr = 0, rankedKd = 0, duoGames = 0, duoAdr = 0, duoKd = 0, tppRankedGames = 0, tppRankedAdr = 0;
   let rankedWr = "0.0", duoWr = "0.0";
   let tier = "UNRANKED", subTier = "", rp = 0;
@@ -155,10 +165,13 @@ async function updatePlayerStatsAndRoles(member, nickname) {
     const rankedRes = await axios.get(`${PUBG_API}/players/${playerId}/seasons/${seasonId}/ranked`, {
       headers: { Authorization: `Bearer ${process.env.PUBG_API_KEY}`, Accept: 'application/vnd.api+json' }
     });
+    
     const rankedStats = rankedRes.data.data.attributes.rankedGameModeStats || {};
-    const rankedFpp = rankedStats['squad-fpp'] || {};
+    
+    // Шукаємо ранг у squad-fpp, або в будь-якому іншому доступному ключі рангу
+    const rankedFpp = rankedStats['squad-fpp'] || rankedStats['squad'] || {};
+    const duo = rankedStats['duo-fpp'] || rankedStats['duo'] || {};
     const rankedTpp = rankedStats['squad'] || {};
-    const duo = rankedStats['duo'] || rankedStats['duo-fpp'] || {};
 
     rankedGames = rankedFpp.roundsPlayed || 0;
     rankedAdr = rankedGames ? Math.round(rankedFpp.damageDealt / rankedGames) : 0;
@@ -180,14 +193,23 @@ async function updatePlayerStatsAndRoles(member, nickname) {
       tppRankedAdr = tppAdr;
     }
 
-    rp = rankedFpp.currentRankPoint || 0;
-    tier = rankedFpp.currentTier?.tier || "UNRANKED";
-    subTier = rankedFpp.currentTier?.subTier || "";
+    rp = rankedFpp.currentRankPoint || rankedFpp.currentRankPoints || 0;
+    
+    // Надійне витягування тиру та субтиру з об'єкта
+    if (rankedFpp.currentTier && rankedFpp.currentTier.tier) {
+      tier = rankedFpp.currentTier.tier;
+      subTier = rankedFpp.currentTier.subTier ? String(rankedFpp.currentTier.subTier) : "";
+    } else if (rankedFpp.tier) {
+      tier = rankedFpp.tier;
+      subTier = rankedFpp.subTier ? String(rankedFpp.subTier) : "";
+    }
   } catch (e) {
+    console.log("Помилка отримання рангу (можливо, гравець не грав у ранкед):", e.message);
     tppRankedGames = tppGames;
     tppRankedAdr = tppAdr;
   }
 
+  // Очищення старих ролей
   const rolesToRemove = member.roles.cache.filter(role => ALL_ROLES.includes(role.name));
   for (const [id, role] of rolesToRemove) {
     if (role.position < guild.members.me.roles.highest.position) {
@@ -195,15 +217,32 @@ async function updatePlayerStatsAndRoles(member, nickname) {
     }
   }
 
+  // Формування списку нових ролей
   const rolesToGiveNames = [];
-  if (tier && tier !== "UNRANKED") {
-    const formattedTier = getRankRoleName(tier, subTier);
-    if (formattedTier) rolesToGiveNames.push(formattedTier);
+  
+  const rankRoleName = getRankRoleName(tier, subTier);
+  if (rankRoleName) {
+    rolesToGiveNames.push(rankRoleName);
   }
-  if (fppGames > 0) { rolesToGiveNames.push(getFppAdrRole(fppAdr)); rolesToGiveNames.push(getFppKdRole(fppKd)); }
-  if (rankedGames > 0) { rolesToGiveNames.push(getRankedAdrRole(rankedAdr)); rolesToGiveNames.push(getRankedKdRole(rankedKd)); }
-  if (tppRankedGames > 0) { rolesToGiveNames.push(getTppAdrRole(tppRankedAdr)); }
-  if (duoGames > 0) { rolesToGiveNames.push(getRankedDuoAdrRole(duoAdr)); rolesToGiveNames.push(getRankedDuoKdRole(duoKd)); }
+
+  if (fppGames > 0) { 
+    rolesToGiveNames.push(getFppAdrRole(fppAdr)); 
+    const fKdRole = getFppKdRole(fppKd);
+    if (fKdRole) rolesToGiveNames.push(fKdRole);
+  }
+  if (rankedGames > 0) { 
+    rolesToGiveNames.push(getRankedAdrRole(rankedAdr)); 
+    const rKdRole = getRankedKdRole(rankedKd);
+    if (rKdRole) rolesToGiveNames.push(rKdRole);
+  }
+  if (tppRankedGames > 0) { 
+    rolesToGiveNames.push(getTppAdrRole(tppRankedAdr)); 
+  }
+  if (duoGames > 0) { 
+    rolesToGiveNames.push(getRankedDuoAdrRole(duoAdr)); 
+    const dKdRole = getRankedDuoKdRole(duoKd);
+    if (dKdRole) rolesToGiveNames.push(dKdRole);
+  }
 
   for (const rName of rolesToGiveNames) {
     if (!rName) continue;
@@ -339,7 +378,7 @@ client.on('interactionCreate', async (interaction) => {
 
       await interaction.editReply({ content: '✅ Реєстрація пройшла успішно! Ваші ролі та нікнейм оновлено.', embeds: [embed] });
 
-      // ПЕРЕНЕСЕННЯ ПЛАШКИ ВНИЗ (ОНОВЛЕНО)
+      // Перенесення плашки вниз каналу
       const channel = interaction.channel;
       if (channel) {
         try {
