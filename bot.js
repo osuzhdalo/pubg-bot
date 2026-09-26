@@ -111,17 +111,25 @@ function getRankedDuoKdRole(kd) { return kd >= 2 ? "RANKED DUO KD 2+" : kd >= 1.
 
 function getRankRoleName(tier, subTier) { 
   if (!tier || tier.toUpperCase() === "UNRANKED" || tier === "") return null; 
+  
+  const upperTier = tier.toUpperCase();
+  
+  // Если ранг содержит "Survivor" (независимо от того, что там передает API: Survivor 1 или просто Survivor),
+  // возвращаем строго одну чистую роль "Survivor"
+  if (upperTier.includes("SURVIVOR")) {
+    return "Survivor";
+  }
+
   const formattedTier = tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase();
   
-  // Якщо це Master, він зазвичай без subTier
-  if (formattedTier === "Master" || formattedTier === "GrandMaster") {
+  if (formattedTier === "Master" || formattedTier === "Grandmaster") {
     return "Master";
   }
 
-  // Для Bronze, Silver, Gold, Platinum, Diamond
   if (subTier && subTier !== "" && !isNaN(subTier)) {
-    return `${formattedTier}${subTier}`;
+    return `${formattedTier} ${subTier}`;
   }
+  
   return formattedTier; 
 }
 
