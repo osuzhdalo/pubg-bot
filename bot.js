@@ -114,7 +114,7 @@ function getRankRoleName(tier, subTier) {
   const formattedTier = tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase();
   
   // Якщо це Master, він зазвичай без subTier
-  if (formattedTier === "Master" || formattedTier === "Grandmaster") {
+  if (formattedTier === "Master" || formattedTier === "Survivor") {
     return "Master";
   }
 
