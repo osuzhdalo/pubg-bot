@@ -98,7 +98,7 @@ const ALL_ROLES = [
   "Gold 4","Gold 3","Gold 2","Gold 1",
   "Platinum 4","Platinum 3","Platinum 2","Platinum 1",
   "Diamond 4","Diamond 3","Diamond 2","Diamond 1",
-  "Master","Survivor 1"
+  "Master","Grandmaster"
 ];
 
 const CREATE_CHANNELS = { "150": "1495532168946913310", "200": "1495532213674971147", "250": "1495532256410734824", "300": "1495532283354943508" };
@@ -192,9 +192,7 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   }
 
   // Очищення старих ролей
-  const rolesToRemove = member.roles.cache.filter(role => 
-  ALL_ROLES.some(rName => rName.toLowerCase() === role.name.toLowerCase())
-);
+  const rolesToRemove = member.roles.cache.filter(role => ALL_ROLES.includes(role.name));
   for (const [id, role] of rolesToRemove) {
     if (role.position < guild.members.me.roles.highest.position) {
       await member.roles.remove(role).catch(() => {});
@@ -212,7 +210,7 @@ async function updatePlayerStatsAndRoles(member, nickname) {
   const givenRoles = [];
   for (const rName of rolesToGiveNames) {
     if (!rName) continue;
-    const role = guild.roles.cache.find(r => r.name.toLowerCase() === rName.toLowerCase());
+    const role = guild.roles.cache.find(r => r.name === rName);
     if (role && role.position < guild.members.me.roles.highest.position) {
       await member.roles.add(role).catch(() => {});
       givenRoles.push(role.name);
